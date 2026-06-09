@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"school-trade/middleware"
 	"school-trade/models"
 	"school-trade/store"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +20,7 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { retu
 
 type ChatHandler struct {
 	Store *store.DBStore
-	rooms map[string]map[*websocket.Conn]bool
+	rooms map[string]map[*websocket.Conn]bool // key=peer_key
 	mu    sync.Mutex
 }
 
@@ -25,8 +28,26 @@ func NewChatHandler(s *store.DBStore) *ChatHandler {
 	return &ChatHandler{Store: s, rooms: make(map[string]map[*websocket.Conn]bool)}
 }
 
+// makePeerKey 生成用户对的唯一标识（按字母序排序）
+func makePeerKey(a, b string) string {
+	if a < b {
+		return a + ":" + b
+	}
+	return b + ":" + a
+}
+
+// resolvePeer 从订单 ID 解析出用户对，返回 peer_key
+func (h *ChatHandler) resolvePeer(orderID string) string {
+	db := h.Store.GetDB()
+	var buyerID, sellerID string
+	err := db.QueryRow("SELECT buyer_id, seller_id FROM orders WHERE id = ?", orderID).Scan(&buyerID, &sellerID)
+	if err != nil {
+		return ""
+	}
+	return makePeerKey(buyerID, sellerID)
+}
+
 func (h *ChatHandler) ChatWS(c *gin.Context) {
-	// WebSocket 鉴权：从 query 参数读取 token
 	token := c.Query("token")
 	if token == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少认证"})
@@ -41,7 +62,6 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 	username := claims.Username
 	orderID := c.Param("orderId")
 
-	// 验证用户属于此订单
 	db := h.Store.GetDB()
 	var buyerID, sellerID string
 	err = db.QueryRow("SELECT buyer_id, seller_id FROM orders WHERE id = ?", orderID).Scan(&buyerID, &sellerID)
@@ -50,6 +70,9 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 		return
 	}
 
+	// 使用 peer_key 作为房间标识
+	peerKey := makePeerKey(buyerID, sellerID)
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
@@ -57,15 +80,15 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 	defer conn.Close()
 
 	h.mu.Lock()
-	if h.rooms[orderID] == nil {
-		h.rooms[orderID] = make(map[*websocket.Conn]bool)
+	if h.rooms[peerKey] == nil {
+		h.rooms[peerKey] = make(map[*websocket.Conn]bool)
 	}
-	h.rooms[orderID][conn] = true
+	h.rooms[peerKey][conn] = true
 	h.mu.Unlock()
 
 	defer func() {
 		h.mu.Lock()
-		delete(h.rooms[orderID], conn)
+		delete(h.rooms[peerKey], conn)
 		h.mu.Unlock()
 	}()
 
@@ -89,7 +112,6 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 			result, _ := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
 			affected, _ := result.RowsAffected()
 			if affected > 0 {
-				// 获取原消息时间
 				var createdAt time.Time
 				db.QueryRow("SELECT created_at FROM chat_messages WHERE id = ?", recallReq.MessageID).Scan(&createdAt)
 				recallBroadcast, _ := json.Marshal(gin.H{
@@ -99,7 +121,7 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 					"recalled":  true,
 					"createdAt": createdAt,
 				})
-				h.broadcast(orderID, conn, recallBroadcast)
+				h.broadcast(peerKey, conn, recallBroadcast)
 			}
 			continue
 		}
@@ -109,7 +131,6 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 				MessageID string `json:"messageId"`
 			}
 			json.Unmarshal(msgBytes, &delReq)
-			// 追加到 deleted_by
 			var currentDeleted string
 			db.QueryRow("SELECT deleted_by FROM chat_messages WHERE id = ?", delReq.MessageID).Scan(&currentDeleted)
 			newDeleted := currentDeleted
@@ -118,7 +139,6 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 			}
 			newDeleted += userID
 			db.Exec("UPDATE chat_messages SET deleted_by = ? WHERE id = ?", newDeleted, delReq.MessageID)
-			// 只通知自己
 			conn.WriteJSON(gin.H{"type": "deleted", "messageId": delReq.MessageID})
 			continue
 		}
@@ -130,13 +150,12 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 			msgType = "text"
 		}
 
-		_, err = db.Exec("INSERT INTO chat_messages (id, order_id, sender_id, sender_name, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-			id, orderID, userID, username, msg.Content, msgType, now)
+		_, err = db.Exec("INSERT INTO chat_messages (id, order_id, peer_key, sender_id, sender_name, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			id, orderID, peerKey, userID, username, msg.Content, msgType, now)
 		if err != nil {
 			continue
 		}
 
-		// 广播给房间内所有人
 		broadcastMsg, _ := json.Marshal(gin.H{
 			"type":       "message",
 			"id":         id,
@@ -147,19 +166,19 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 			"msgType":    msgType,
 			"createdAt":  now,
 		})
-		h.broadcast(orderID, conn, broadcastMsg)
+		h.broadcast(peerKey, conn, broadcastMsg)
 	}
 }
 
-func (h *ChatHandler) broadcast(orderID string, senderConn *websocket.Conn, msg []byte) {
+func (h *ChatHandler) broadcast(peerKey string, senderConn *websocket.Conn, msg []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for conn := range h.rooms[orderID] {
+	for conn := range h.rooms[peerKey] {
 		conn.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
-// ChatHistory 获取聊天记录
+// ChatHistory 获取聊天记录（按 peer_key 查询，同一个用户对共用聊天记录）
 func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	userID := c.GetString("userId")
 	orderID := c.Param("orderId")
@@ -172,7 +191,9 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 		return
 	}
 
-	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE order_id = ? ORDER BY created_at ASC", orderID)
+	peerKey := makePeerKey(buyerID, sellerID)
+
+	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE peer_key = ? ORDER BY created_at ASC", peerKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -182,13 +203,14 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	var msgs []gin.H
 	for rows.Next() {
 		var m models.ChatMessage
+		var dummyPeer string
 		rows.Scan(&m.ID, &m.OrderID, &m.SenderID, &m.SenderName, &m.Content, &m.Type, &m.Recalled, &m.DeletedBy, &m.CreatedAt)
+		_ = dummyPeer
 
-		// 检查是否被当前用户删除
 		deleted := false
 		if m.DeletedBy != "" {
-			for _, d := range splitString(m.DeletedBy, ",") {
-				if d == userID {
+			for _, d := range splitStr(m.DeletedBy, ",") {
+				if strings.TrimSpace(d) == userID {
 					deleted = true
 					break
 				}
@@ -211,42 +233,141 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
 }
 
-func splitString(s, sep string) []string {
-	var result []string
-	for _, part := range splitStr(s, sep) {
-		p := trimStr(part)
-		if p != "" {
-			result = append(result, p)
-		}
+// ========== 管理员接口 ==========
+
+// AdminChatPeers 列出所有聊天用户对
+func (h *ChatHandler) AdminChatPeers(c *gin.Context) {
+	db := h.Store.GetDB()
+	rows, err := db.Query("SELECT DISTINCT peer_key, COUNT(*) AS msg_cnt, MAX(created_at) AS last_msg FROM chat_messages WHERE peer_key != '' GROUP BY peer_key ORDER BY last_msg DESC")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		return
 	}
-	return result
+	defer rows.Close()
+
+	type PeerInfo struct {
+		PeerKey  string    `json:"peerKey"`
+		UserA    string    `json:"userA"`
+		UserB    string    `json:"userB"`
+		MsgCount int       `json:"msgCount"`
+		LastMsg  time.Time `json:"lastMsg"`
+	}
+
+	var list []PeerInfo
+	for rows.Next() {
+		var p PeerInfo
+		var last sql.NullTime
+		rows.Scan(&p.PeerKey, &p.MsgCount, &last)
+		if last.Valid {
+			p.LastMsg = last.Time
+		}
+		parts := strings.SplitN(p.PeerKey, ":", 2)
+		if len(parts) == 2 {
+			p.UserA = parts[0]
+			p.UserB = parts[1]
+		}
+		list = append(list, p)
+	}
+	if list == nil {
+		list = []PeerInfo{}
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: list})
 }
 
-// Simple split (standalone to avoid import)
+// AdminChatMessages 查看指定用户对的所有聊天记录
+func (h *ChatHandler) AdminChatMessages(c *gin.Context) {
+	peerKey := c.Query("peer_key")
+	if peerKey == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "缺少 peer_key 参数"})
+		return
+	}
+
+	db := h.Store.GetDB()
+	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE peer_key = ? ORDER BY created_at ASC", peerKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		return
+	}
+	defer rows.Close()
+
+	var msgs []gin.H
+	for rows.Next() {
+		var m models.ChatMessage
+		rows.Scan(&m.ID, &m.OrderID, &m.SenderID, &m.SenderName, &m.Content, &m.Type, &m.Recalled, &m.DeletedBy, &m.CreatedAt)
+		msgs = append(msgs, gin.H{
+			"id":         m.ID,
+			"orderId":    m.OrderID,
+			"senderId":   m.SenderID,
+			"senderName": m.SenderName,
+			"content":    truncateStr(m.Content, 200),
+			"type":       m.Type,
+			"recalled":   m.Recalled,
+			"createdAt":  m.CreatedAt,
+		})
+	}
+	if msgs == nil {
+		msgs = []gin.H{}
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
+}
+
+// AdminChatDelete 删除指定用户对的所有聊天记录
+func (h *ChatHandler) AdminChatDelete(c *gin.Context) {
+	peerKey := c.Query("peer_key")
+	if peerKey == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "缺少 peer_key 参数"})
+		return
+	}
+
+	db := h.Store.GetDB()
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "开启事务失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	result, err := tx.Exec("DELETE FROM chat_messages WHERE peer_key = ?", peerKey)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除失败: " + err.Error()})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "提交事务失败: " + err.Error()})
+		return
+	}
+
+	affected, _ := result.RowsAffected()
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: fmt.Sprintf("已删除 %d 条聊天记录", affected)})
+}
+
+func truncateStr(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
+}
+
 func splitStr(s, sep string) []string {
 	if s == "" {
 		return nil
 	}
 	var parts []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
-			parts = append(parts, s[start:i])
-			start = i + len(sep)
-			i += len(sep) - 1
+	for {
+		idx := strings.Index(s, sep)
+		if idx < 0 {
+			parts = append(parts, s)
+			break
 		}
+		parts = append(parts, s[:idx])
+		s = s[idx+len(sep):]
 	}
-	parts = append(parts, s[start:])
 	return parts
-}
-
-func trimStr(s string) string {
-	l, r := 0, len(s)-1
-	for l <= r && (s[l] == ' ' || s[l] == '\t' || s[l] == '\n' || s[l] == '\r') {
-		l++
-	}
-	for r >= l && (s[r] == ' ' || s[r] == '\t' || s[r] == '\n' || s[r] == '\r') {
-		r--
-	}
-	return s[l : r+1]
 }

@@ -98,6 +98,81 @@ func initData(dbStore *store.DBStore) {
 			)
 		}
 	}
+
+	// 初始化测试聊天数据
+	var chatCount int
+	db.QueryRow("SELECT COUNT(*) FROM chat_messages").Scan(&chatCount)
+	if chatCount == 0 {
+		now := time.Now()
+		peerKey := "u-alice:u-bob"
+		msgs := []struct {
+			id        string
+			orderID   string
+			peerKey   string
+			senderID  string
+			sender    string
+			content   string
+			offsetSec int
+		}{
+			{"msg-01", "o-chat001", peerKey, "u-alice", "小艾", "你好！我想买你的羽毛球拍，还有货吗？", 8000},
+			{"msg-02", "o-chat001", peerKey, "u-bob", "鲍勃", "有的！球拍还在，成色很好", 7900},
+			{"msg-03", "o-chat001", peerKey, "u-alice", "小艾", "能便宜点吗？我是学生👀", 7800},
+			{"msg-04", "o-chat001", peerKey, "u-bob", "鲍勃", "可以小刀，580给你怎么样？", 7700},
+			{"msg-05", "o-chat001", peerKey, "u-alice", "小艾", "好！怎么交易？", 7600},
+			{"msg-06", "o-chat001", peerKey, "u-bob", "鲍勃", "我在龙泉驿校区，周末可以当面交易", 7500},
+			{"msg-07", "o-chat001", peerKey, "u-alice", "小艾", "科技在航空港校区，不过我可以过去", 7400},
+			{"msg-08", "o-chat001", peerKey, "u-bob", "鲍勃", "那周六下午3点怎么样？在图书馆门口", 7300},
+			{"msg-09", "o-chat001", peerKey, "u-alice", "小艾", "没问题，到时候见！", 7200},
+			{"msg-10", "o-chat001", peerKey, "u-bob", "鲍勃", "好的，记得带上学生证👍", 7100},
+		}
+		for _, m := range msgs {
+			db.Exec("INSERT INTO chat_messages (id, order_id, peer_key, sender_id, sender_name, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?, 'text', ?)",
+				m.id, m.orderID, m.peerKey, m.senderID, m.sender, m.content, now.Add(-time.Duration(m.offsetSec)*time.Second))
+		}
+	}
+
+	// 初始化测试购物车数据
+	var cartCount int
+	db.QueryRow("SELECT COUNT(*) FROM cart_items").Scan(&cartCount)
+	if cartCount == 0 {
+		now := time.Now()
+		db.Exec("INSERT INTO cart_items (id, user_id, product_id, product_title, product_image, spec_name, price, quantity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"cart-01", "u-alice", "p-004", "YONEX 天斧99 羽毛球拍", "https://picsum.photos/seed/badminton/400/400", "", 620, 1, now.Add(-2*time.Hour))
+		db.Exec("INSERT INTO cart_items (id, user_id, product_id, product_title, product_image, spec_name, price, quantity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"cart-02", "u-alice", "p-008", "AirPods Pro 2代 在保", "https://picsum.photos/seed/airpodspro/400/400", "", 900, 1, now.Add(-1*time.Hour))
+		db.Exec("INSERT INTO cart_items (id, user_id, product_id, product_title, product_image, spec_name, price, quantity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"cart-03", "u-bob", "p-001", "九成新 iPhone 14 128G 星光色", "https://picsum.photos/seed/iphone14/400/400", "", 3800, 1, now.Add(-30*time.Minute))
+	}
+
+	// 初始化测试收藏数据
+	var favCount int
+	db.QueryRow("SELECT COUNT(*) FROM favorites").Scan(&favCount)
+	if favCount == 0 {
+		now := time.Now()
+		db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"fav-01", "u-alice", "p-005", "Nintendo Switch OLED 白色", "https://picsum.photos/seed/nswitch/400/400", 1500, now.Add(-3*time.Hour))
+		db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"fav-02", "u-alice", "p-012", "iPad Pro 2022 M2芯片 11寸", "https://picsum.photos/seed/ipadpro/400/400", 4800, now.Add(-2*time.Hour))
+		db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"fav-03", "u-bob", "p-007", "戴尔显示器 U2419H 24寸 IPS", "https://picsum.photos/seed/dellmonitor/400/400", 750, now.Add(-1*time.Hour))
+	}
+
+	// 初始化测试浏览历史数据
+	var histCount int
+	db.QueryRow("SELECT COUNT(*) FROM history").Scan(&histCount)
+	if histCount == 0 {
+		now := time.Now()
+		db.Exec("INSERT INTO history (id, user_id, product_id, product_title, product_image, price, viewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"hist-01", "u-alice", "p-002", "高等数学第七版上下册全套", "https://picsum.photos/seed/mathbook/400/400", 35, now.Add(-5*time.Hour))
+		db.Exec("INSERT INTO history (id, user_id, product_id, product_title, product_image, price, viewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"hist-02", "u-alice", "p-017", "Sony WH-1000XM5 降噪耳机", "https://picsum.photos/seed/sonyheadphone/400/400", 1350, now.Add(-4*time.Hour))
+		db.Exec("INSERT INTO history (id, user_id, product_id, product_title, product_image, price, viewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"hist-03", "u-alice", "p-010", "捷安特 ATX 860 山地车", "https://picsum.photos/seed/bicycle/400/400", 1200, now.Add(-3*time.Hour))
+		db.Exec("INSERT INTO history (id, user_id, product_id, product_title, product_image, price, viewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"hist-04", "u-bob", "p-003", "电竞椅 傲风电竞椅 粉色", "https://picsum.photos/seed/gamingchair/400/400", 450, now.Add(-2*time.Hour))
+		db.Exec("INSERT INTO history (id, user_id, product_id, product_title, product_image, price, viewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"hist-05", "u-bob", "p-013", "Nike Air Force 1 纯白 42码", "https://picsum.photos/seed/nikeshoes/400/400", 380, now.Add(-1*time.Hour))
+	}
 }
 
 func main() {
@@ -215,6 +290,10 @@ func main() {
 			admin.POST("/tables/:table", adminHandler.CreateRow)
 			admin.PUT("/tables/:table/:id", adminHandler.UpdateRow)
 			admin.DELETE("/tables/:table/:id", adminHandler.DeleteRow)
+			// 聊天管理
+			admin.GET("/chat/peers", chatHandler.AdminChatPeers)
+			admin.GET("/chat/messages", chatHandler.AdminChatMessages)
+			admin.DELETE("/chat/messages", chatHandler.AdminChatDelete)
 		}
 	}
 

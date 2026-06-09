@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"school-trade/models"
 	"school-trade/store"
@@ -86,6 +87,38 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "下单失败"})
 		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 如果有规格，减少对应规格的库存
+	if req.Spec != "" {
+		var specsJSON string
+		tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&specsJSON)
+		if specsJSON != "" {
+			var specs []models.ProductSpec
+			json.Unmarshal([]byte(specsJSON), &specs)
+			found := false
+			for i := range specs {
+				if specs[i].Name == req.Spec || specs[i].ID == req.Spec {
+					if specs[i].Stock < req.Quantity {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足"})
+						return
+					}
+					specs[i].Stock -= req.Quantity
+					found = true
+					break
+				}
+			}
+			if found {
+				newSpecsJSON, _ := json.Marshal(specs)
+				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID)
+			}
+		}
 	}
 
 	_, err = tx.Exec(
@@ -215,6 +248,23 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 
 	if req.Status == "rejected" || req.Status == "cancelled" {
 		_, err = tx.Exec("UPDATE products SET status = 'selling' WHERE id = ?", o.ProductID)
+		// 恢复规格库存
+		if o.SpecName != "" {
+			var specsJSON string
+			tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", o.ProductID).Scan(&specsJSON)
+			if specsJSON != "" {
+				var specs []models.ProductSpec
+				json.Unmarshal([]byte(specsJSON), &specs)
+				for i := range specs {
+					if specs[i].Name == o.SpecName || specs[i].ID == o.SpecName {
+						specs[i].Stock += o.Quantity
+						break
+					}
+				}
+				newSpecsJSON, _ := json.Marshal(specs)
+				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), o.ProductID)
+			}
+		}
 	} else if req.Status == "completed" || req.Status == "shipped" {
 		_, err = tx.Exec("UPDATE products SET status = 'sold' WHERE id = ?", o.ProductID)
 	}

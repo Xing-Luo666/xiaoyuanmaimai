@@ -273,6 +273,7 @@ func (s *DBStore) initTables() error {
 		`CREATE TABLE IF NOT EXISTS chat_messages (
 			id VARCHAR(64) PRIMARY KEY,
 			order_id VARCHAR(64) NOT NULL,
+			peer_key VARCHAR(128) DEFAULT '',
 			sender_id VARCHAR(64) NOT NULL,
 			sender_name VARCHAR(64) NOT NULL,
 			content MEDIUMTEXT,
@@ -280,6 +281,7 @@ func (s *DBStore) initTables() error {
 			recalled TINYINT DEFAULT 0,
 			deleted_by VARCHAR(512) DEFAULT '',
 			created_at DATETIME NOT NULL,
+			INDEX idx_chat_peer (peer_key),
 			INDEX idx_chat_order (order_id),
 			INDEX idx_chat_created (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
@@ -302,6 +304,10 @@ func (s *DBStore) initTables() error {
 		"ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL AFTER status",
 		// 将 chat_messages.content 从 TEXT 升级为 MEDIUMTEXT（支持大图片）
 		"ALTER TABLE chat_messages MODIFY COLUMN content MEDIUMTEXT",
+		// 添加 peer_key 列（支持按用户对分组聊天）
+		"ALTER TABLE chat_messages ADD COLUMN peer_key VARCHAR(128) DEFAULT '' AFTER order_id",
+		// 回填已有聊天记录的 peer_key
+		"UPDATE chat_messages cm SET cm.peer_key = (SELECT CONCAT(LEAST(o.buyer_id, o.seller_id), ':', GREATEST(o.buyer_id, o.seller_id)) FROM orders o WHERE o.id = cm.order_id) WHERE cm.peer_key = '' AND EXISTS (SELECT 1 FROM orders o WHERE o.id = cm.order_id)",
 	}
 	for _, ddl := range colAlters {
 		db.Exec(ddl) // 忽略错误
