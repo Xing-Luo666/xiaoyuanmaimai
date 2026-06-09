@@ -244,13 +244,15 @@ function formatPrice(price) {
 }
 
 function formatDate(dateStr) {
+  if (!dateStr) return '';
   var d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
   var now = new Date();
   var diff = now - d;
-  if (diff < 60000) return '\u521A\u521A';
-  if (diff < 3600000) return Math.floor(diff / 60000) + '\u5206\u949F\u524D';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + '\u5C0F\u65F6\u524D';
-  if (diff < 604800000) return Math.floor(diff / 86400000) + '\u5929\u524D';
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+  if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
   return d.toLocaleDateString('zh-CN');
 }
 

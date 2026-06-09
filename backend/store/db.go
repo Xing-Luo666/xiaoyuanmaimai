@@ -275,7 +275,7 @@ func (s *DBStore) initTables() error {
 			order_id VARCHAR(64) NOT NULL,
 			sender_id VARCHAR(64) NOT NULL,
 			sender_name VARCHAR(64) NOT NULL,
-			content TEXT,
+			content MEDIUMTEXT,
 			type VARCHAR(20) DEFAULT 'text',
 			recalled TINYINT DEFAULT 0,
 			deleted_by VARCHAR(512) DEFAULT '',
@@ -300,6 +300,8 @@ func (s *DBStore) initTables() error {
 		"ALTER TABLE orders ADD COLUMN spec_name VARCHAR(255) DEFAULT '' AFTER product_image",
 		"ALTER TABLE orders ADD COLUMN quantity INT DEFAULT 1 AFTER spec_name",
 		"ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL AFTER status",
+		// 将 chat_messages.content 从 TEXT 升级为 MEDIUMTEXT（支持大图片）
+		"ALTER TABLE chat_messages MODIFY COLUMN content MEDIUMTEXT",
 	}
 	for _, ddl := range colAlters {
 		db.Exec(ddl) // 忽略错误

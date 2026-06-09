@@ -28,6 +28,11 @@
 .modal-img { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.9); z-index:999; align-items:center; justify-content:center }
 .modal-img.show { display:flex }
 .modal-img img { max-width:90vw; max-height:90vh }
+.drag-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(37,99,235,.15); z-index:998; align-items:center; justify-content:center; pointer-events:none }
+.drag-overlay.show { display:flex }
+.drag-overlay-inner { background:#fff; border:3px dashed #2563eb; border-radius:16px; padding:40px 60px; text-align:center; box-shadow:0 8px 32px rgba(37,99,235,.25) }
+.drag-overlay-inner .icon { font-size:48px; margin-bottom:12px }
+.drag-overlay-inner .text { font-size:18px; color:#2563eb; font-weight:600 }
 </style>
 </head>
 <body>
@@ -39,12 +44,13 @@
   <div class="chat-msgs" id="chatMsgs"></div>
   <div class="chat-input">
     <span class="img-btn" onclick="document.getElementById('imgInput').click()" title="发送图片">🖼</span>
-    <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="sendImage(this.files[0])">
+    <input type="file" id="imgInput" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files);this.value=''">
     <input type="text" id="msgInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendText()">
     <button onclick="sendText()">发送</button>
   </div>
 </div>
 <div class="modal-img" id="imgModal" onclick="this.classList.remove('show')"><img id="imgModalSrc"></div>
+<div class="drag-overlay" id="dragOverlay"><div class="drag-overlay-inner"><div class="icon">📷</div><div class="text">释放以发送图片</div><div style="color:#6b7280;font-size:13px;margin-top:6px">支持 jpg/png/gif/webp，单张 ≤10MB</div></div></div>
 
 <script src="../js/api.js"></script>
 <script>
@@ -71,27 +77,73 @@ var messages = [];
   var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   var wsURL = protocol + '//' + location.host + '/api/chat/ws/' + orderId + '?token=' + encodeURIComponent(token);
   ws = new WebSocket(wsURL);
+  ws.onopen = function() { console.log('WebSocket connected'); };
   ws.onmessage = function(e) {
     var msg = JSON.parse(e.data);
     if (msg.type === 'deleted') {
       messages = messages.filter(function(m){ return m.id !== msg.messageId; });
+    } else if (msg.type === 'recall') {
+      // 兼容旧版撤回消息
+      var m = messages.find(function(x){ return x.id === msg.messageId; });
+      if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
     } else if (msg.recalled) {
       var m = messages.find(function(x){ return x.id === msg.id; });
       if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
     } else {
-      messages.push(msg);
+      // 去重：避免历史消息与WebSocket重复
+      var existing = messages.find(function(x){ return x.id === msg.id; });
+      if (!existing) { messages.push(msg); }
     }
     renderMessages();
   };
   ws.onclose = function() { console.log('WebSocket closed'); };
   ws.onerror = function(e) { console.log('WebSocket error', e); };
+
+  // ===== 拖拽上传 =====
+  var dragOverlay = document.getElementById('dragOverlay');
+  var dragCounter = 0;
+  document.addEventListener('dragenter', function(e) {
+    e.preventDefault();
+    dragCounter++;
+    if (dragCounter === 1) { dragOverlay.classList.add('show'); }
+  });
+  document.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; dragOverlay.classList.remove('show'); }
+  });
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dragCounter = 0;
+    dragOverlay.classList.remove('show');
+    handleFiles(e.dataTransfer.files);
+  });
 })();
+
+function handleFiles(files) {
+  if (!files || !files.length) return;
+  var validExts = ['jpg','jpeg','png','gif','webp','bmp'];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (!f.type.startsWith('image/')) continue;
+    var ext = f.name.split('.').pop().toLowerCase();
+    if (validExts.indexOf(ext) === -1) { showToast(f.name + ' 格式不支持', 'error'); continue; }
+    sendImage(f);
+  }
+}
 
 function renderMessages() {
   var container = document.getElementById('chatMsgs');
   container.innerHTML = messages.map(function(m) {
     var isMine = m.senderId === userId;
-    var content = m.type === 'image' ? '<img src="'+m.content+'" ondblclick="showImage(\''+m.content+'\')" alt="图片">' : escHtml(m.content||'');
+    var contentType = m.msgType || m.type;
+    var content;
+    if (contentType === 'image') {
+      content = '<img src="'+escAttr(m.content)+'" data-full="'+escAttr(m.content)+'" ondblclick="showImage(this)" alt="图片">';
+    } else {
+      content = escHtml(m.content||'');
+    }
     var actions = '';
     if (isMine && !m.recalled) {
       actions = '<div class="actions"><button onclick="recallMsg(\''+m.id+'\')">撤回</button><button onclick="deleteMsg(\''+m.id+'\')">删除</button></div>';
@@ -133,12 +185,14 @@ function deleteMsg(msgId) {
   ws.send(JSON.stringify({ type: 'delete', messageId: msgId }));
 }
 
-function showImage(src) {
+function showImage(el) {
+  var src = el.getAttribute('data-full') || el.src;
   document.getElementById('imgModalSrc').src = src;
   document.getElementById('imgModal').classList.add('show');
 }
 
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+function escAttr(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
 </script>
 </body>
 </html>

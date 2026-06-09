@@ -86,8 +86,21 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 				MessageID string `json:"messageId"`
 			}
 			json.Unmarshal(msgBytes, &recallReq)
-			db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
-			h.broadcast(orderID, conn, msgBytes)
+			result, _ := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			affected, _ := result.RowsAffected()
+			if affected > 0 {
+				// 获取原消息时间
+				var createdAt time.Time
+				db.QueryRow("SELECT created_at FROM chat_messages WHERE id = ?", recallReq.MessageID).Scan(&createdAt)
+				recallBroadcast, _ := json.Marshal(gin.H{
+					"type":      "message",
+					"id":        recallReq.MessageID,
+					"content":   "[消息已撤回]",
+					"recalled":  true,
+					"createdAt": createdAt,
+				})
+				h.broadcast(orderID, conn, recallBroadcast)
+			}
 			continue
 		}
 

@@ -133,17 +133,24 @@
 
   function handleFiles(files) {
     var validExts = ['jpg','jpeg','png','gif','webp','bmp','heic','heif'];
+    var validFiles = [];
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (f.size > 10 * 1024 * 1024) { showToast(f.name + ' 超过10MB限制', 'error'); continue; }
       var ext = f.name.split('.').pop().toLowerCase();
       if (validExts.indexOf(ext) === -1) { showToast(f.name + ' 格式不支持', 'error'); continue; }
-      uploadFile(f);
+      validFiles.push(f);
     }
+    // 逐个上传（串行，避免并发问题）
+    uploadNext(validFiles, 0);
   }
 
-  async function uploadFile(file) {
-    if (uploading) { showToast('请等待当前上传完成', 'warning'); return; }
+  function uploadNext(files, idx) {
+    if (idx >= files.length) return;
+    uploadFile(files[idx], function() { uploadNext(files, idx + 1); });
+  }
+
+  async function uploadFile(file, callback) {
     uploading = true;
     progressBar.style.display = 'block';
     progressBar.querySelector('.bar').style.width = '30%';
@@ -171,9 +178,11 @@
       }
     } catch(e) {
       progressBar.style.display = 'none';
+      progressBar.querySelector('.bar').style.width = '0%';
       showToast('网络错误，上传失败', 'error');
     }
     uploading = false;
+    if (callback) callback();
   }
 
   function renderPreviews() {
