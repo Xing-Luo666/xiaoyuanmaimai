@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 - 校园二手交易平台</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height:100vh; display:flex; align-items:center; justify-content:center }
+.reg-footer { text-align:center; margin-top:24px; color:var(--text-light); font-size:12px }
+</style>
+</head>
+<body>
+
+<div>
+  <div class="login-wrap" style="margin:0">
+    <div class="l-card">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="logo-icon" style="margin:0 auto 8px">📝</div>
+        <h3>创建账号</h3>
+        <p style="color:var(--text-light);font-size:12px;margin-top:4px">加入校园二手交易平台</p>
+      </div>
+      <div id="errorMsg" style="background:#FEF2F2;color:#EF4444;border:1px solid #FECACA;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none"></div>
+      <form id="registerForm">
+        <div class="form-group"><label class="form-label">用户名 *</label><input type="text" class="form-input" id="username" placeholder="4-20位字母或数字" required minlength="4" maxlength="20"></div>
+        <div class="form-group"><label class="form-label">密码 *</label><input type="password" class="form-input" id="password" placeholder="至少6位密码" required minlength="6"></div>
+        <div class="form-group"><label class="form-label">确认密码 *</label><input type="password" class="form-input" id="password2" placeholder="再次输入密码" required></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group"><label class="form-label">昵称 *</label><input type="text" class="form-input" id="nickname" placeholder="你的昵称" required></div>
+          <div class="form-group"><label class="form-label">手机号</label><input type="text" class="form-input" id="phone" placeholder="选填"></div>
+        </div>
+        <div class="form-group"><label class="form-label">邮箱</label><input type="email" class="form-input" id="email" placeholder="选填"></div>
+        <button type="submit" class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="submitBtn"><span id="btnText">注 册</span></button>
+      </form>
+      <div style="text-align:center;margin-top:20px;font-size:14px;color:var(--text-gray)">已有账号？ <a href="login.html">去登录</a></div>
+      <div style="text-align:center;margin-top:12px"><a href="../index.html" style="font-size:13px;color:var(--text-light)">← 返回首页</a></div>
+    </div>
+  </div>
+  <div class="reg-footer">Copyright © 2024 校园二手交易平台</div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+(function() {
+  if (api.isLoggedIn()) { location.href = '../index.html'; return; }
+
+  document.getElementById('registerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+    var password2 = document.getElementById('password2').value;
+    var nickname = document.getElementById('nickname').value.trim();
+    var phone = document.getElementById('phone').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var errEl = document.getElementById('errorMsg');
+
+    if (!/^[a-zA-Z0-9]{4,20}$/.test(username)) { errEl.textContent = '用户名需为4-20位字母或数字'; errEl.style.display = 'block'; return; }
+    if (password.length < 6) { errEl.textContent = '密码至少6位'; errEl.style.display = 'block'; return; }
+    if (password !== password2) { errEl.textContent = '两次密码不一致'; errEl.style.display = 'block'; return; }
+    if (!nickname) { errEl.textContent = '请输入昵称'; errEl.style.display = 'block'; return; }
+
+    errEl.style.display = 'none';
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('btnText').textContent = '注册中...';
+
+    api.register({ username: username, password: password, nickname: nickname, phone: phone, email: email }).then(function(res) {
+      document.getElementById('submitBtn').disabled = false;
+      document.getElementById('btnText').textContent = '注 册';
+      if (res.code === 200) {
+        var el = document.createElement('div'); el.className = 'mall-toast success'; el.textContent = '注册成功！'; document.body.appendChild(el); setTimeout(function() { el.remove(); location.href = '../index.html'; }, 800);
+      } else {
+        errEl.textContent = res.message || '注册失败';
+        errEl.style.display = 'block';
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

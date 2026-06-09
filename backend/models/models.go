@@ -1,0 +1,84 @@
+package models
+
+import "time"
+
+type User struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	Password  string    `json:"password"`
+	Nickname  string    `json:"nickname"`
+	Avatar    string    `json:"avatar"`
+	Phone     string    `json:"phone"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type Product struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Category    string    `json:"category"`
+	Price       float64   `json:"price"`
+	OriPrice    float64   `json:"oriPrice"`
+	Images      []string  `json:"images"`
+	Condition   string    `json:"condition"`
+	Campus      string    `json:"campus"`
+	SellerID    string    `json:"sellerId"`
+	SellerName  string    `json:"sellerName"`
+	Status      string    `json:"status"`
+	ViewCount   int       `json:"viewCount"`
+	LikeCount   int       `json:"likeCount"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type Order struct {
+	ID          string    `json:"id"`
+	ProductID   string    `json:"productId"`
+	ProductTitle string   `json:"productTitle"`
+	BuyerID     string    `json:"buyerId"`
+	BuyerName   string    `json:"buyerName"`
+	SellerID    string    `json:"sellerId"`
+	SellerName  string    `json:"sellerName"`
+	Price       float64   `json:"price"`
+	Status      string    `json:"status"`
+	Message     string    `json:"message"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type LoginRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RegisterRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Nickname string `json:"nickname" binding:"required"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+}
+
+type SSOToken struct {
+	Token     string `json:"token"`
+	UserID    string `json:"userId"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	ExpiresAt int64  `json:"expiresAt"`
+}
+
+type APIResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+type PageData struct {
+	List     interface{} `json:"list"`
+	Total    int         `json:"total"`
+	Page     int         `json:"page"`
+	PageSize int         `json:"pageSize"`
+}

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据管理 - 管理员面板</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa; color: #333; min-height: 100vh;
+    }
+    header {
+      background: #1a1a2e; color: #fff; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px; position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header .nav-links { display: flex; gap: 16px; align-items: center; }
+    header .nav-links a { color: #a0aec0; text-decoration: none; font-size: 14px; transition: color .2s; }
+    header .nav-links a:hover { color: #fff; }
+    .layout { display: flex; height: calc(100vh - 56px); }
+    .sidebar {
+      width: 220px; background: #fff; border-right: 1px solid #e2e8f0;
+      padding: 16px 0; flex-shrink: 0;
+    }
+    .sidebar h3 { font-size: 12px; color: #94a3b8; text-transform: uppercase; padding: 0 16px; margin-bottom: 8px; }
+    .sidebar .table-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; cursor: pointer; font-size: 14px; color: #475569;
+      transition: all .15s; border-left: 3px solid transparent;
+    }
+    .sidebar .table-item:hover { background: #f1f5f9; }
+    .sidebar .table-item.active { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; font-weight: 600; }
+    .sidebar .table-item .count { font-size: 11px; color: #94a3b8; background: #f1f5f9; padding: 2px 8px; border-radius: 10px; }
+    .main {
+      flex: 1; overflow: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+    }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; }
+    .toolbar h2 { font-size: 20px; color: #1e293b; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px;
+      cursor: pointer; transition: all .2s; font-weight: 500;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-outline { background: #fff; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-outline:hover { background: #f8fafc; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .data-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .data-table th, .data-table td { padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+    .data-table th { background: #f8fafc; color: #64748b; font-weight: 600; white-space: nowrap; }
+    .data-table td { color: #334155; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .data-table tr:hover td { background: #f8fafc; }
+    .data-table .actions { white-space: nowrap; display: flex; gap: 6px; }
+    .empty { text-align: center; padding: 48px; color: #94a3b8; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px; width: 560px; max-height: 80vh;
+      overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: #fff;
+    }
+    .modal-header h3 { font-size: 16px; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; }
+    .modal-body { padding: 20px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+      font-size: 13px; color: #334155; transition: border-color .2s; outline: none;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: #2563eb; }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .form-group .hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px;
+      font-size: 13px; color: #fff; z-index: 300; display: none; animation: slideUp .3s ease;
+    }
+    .toast.success { background: #16a34a; }
+    .toast.error { background: #ef4444; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .loading { text-align: center; padding: 48px; color: #94a3b8; }
+    .confirm-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); z-index: 250; align-items: center; justify-content: center; }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box { background: #fff; border-radius: 12px; padding: 24px; text-align: center; width: 360px; }
+    .confirm-box p { margin: 12px 0 20px; color: #64748b; font-size: 14px; }
+    .confirm-box .actions { display: flex; gap: 8px; justify-content: center; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>数据管理面板</h1>
+  <div class="nav-links">
+    <a href="/">返回首页</a>
+    <a href="db-config.html">数据库配置</a>
+    <span id="userInfo" style="color:#a0aec0;font-size:13px;"></span>
+  </div>
+</header>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <h3>数据表</h3>
+    <div id="tableList" class="loading">加载中...</div>
+  </aside>
+  <main class="main">
+    <div class="toolbar">
+      <h2 id="tableTitle">请选择数据表</h2>
+      <button class="btn btn-primary" id="addBtn" onclick="openCreateModal()" style="display:none">+ 新增记录</button>
+    </div>
+    <div id="dataArea">
+      <div class="empty">请从左侧选择要管理的数据表</div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">编辑记录</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="modalForm"></form>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="modalSubmit" onclick="submitForm()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h3>确认删除</h3>
+    <p id="confirmMsg">确定要删除这条记录吗？此操作不可撤销。</p>
+    <div class="actions">
+      <button class="btn btn-outline" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = '/api';
+let currentTable = null;
+let currentColumns = [];
+let currentData = [];
+let editingRow = null;
+let pendingDelete = null;
+
+// 获取 token
+function getToken() {
+  return sessionStorage.getItem('sso_token') || localStorage.getItem('sso_token') || '';
+}
+
+async function apiFetch(url, options = {}) {
+  const token = getToken();
+  if (!token) {
+    window.location.href = '/';
+    return;
+  }
+  const res = await fetch(API_BASE + url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token,
+      ...options.headers,
+    },
+  });
+  if (res.status === 401) {
+    window.location.href = '/';
+    return;
+  }
+  if (res.status === 403) {
+    alert('无权限访问管理面板');
+    window.location.href = '/';
+    return;
+  }
+  return res.json();
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+// 初始化
+async function init() {
+  const user = JSON.parse(sessionStorage.getItem('sso_user') || localStorage.getItem('sso_user') || '{}');
+  if (user.role !== 'admin') {
+    window.location.href = '/';
+    return;
+  }
+  document.getElementById('userInfo').textContent = user.username || 'admin';
+  await loadTables();
+}
+
+async function loadTables() {
+  const data = await apiFetch('/admin/tables');
+  if (!data || data.code !== 200) return;
+  const tables = data.data;
+  const container = document.getElementById('tableList');
+  container.innerHTML = tables.map(t =>
+    `<div class="table-item" onclick="selectTable('${t.name}')" data-table="${t.name}">
+      <span>${getName(t.name)}</span>
+      <span class="count">${t.rowCount}</span>
+    </div>`
+  ).join('');
+  window._tableData = tables;
+}
+
+function getName(name) {
+  const map = { users: '用户', products: '商品', orders: '订单' };
+  return map[name] || name;
+}
+
+async function selectTable(name) {
+  currentTable = name;
+  document.querySelectorAll('.table-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-table="${name}"]`)?.classList.add('active');
+  document.getElementById('tableTitle').textContent = getName(name);
+  document.getElementById('addBtn').style.display = '';
+
+  const data = await apiFetch('/admin/tables/' + name);
+  if (!data || data.code !== 200) return;
+  currentColumns = data.data.columns;
+  currentData = data.data.rows;
+
+  const area = document.getElementById('dataArea');
+  if (currentData.length === 0) {
+    area.innerHTML = '<div class="empty">暂无数据</div>';
+    return;
+  }
+
+  const cols = currentColumns.map(c => c.name);
+  const ths = cols.map(c => `<th>${c}</th>`).join('') + '<th>操作</th>';
+  const rows = currentData.map(row => {
+    const tds = cols.map(col => {
+      let val = row[col];
+      if (val === null || val === undefined) return '<td style="color:#94a3b8">NULL</td>';
+      if (typeof val === 'object') return '<td>' + JSON.stringify(val).slice(0, 60) + '</td>';
+      let s = String(val);
+      if (s.length > 60) s = s.slice(0, 60) + '...';
+      return '<td title="' + String(val).replace(/"/g, '&quot;') + '">' + s + '</td>';
+    }).join('');
+    const id = row.id || row.ID;
+    return `<tr>
+      ${tds}
+      <td class="actions">
+        <button class="btn btn-outline btn-sm" onclick="editRow('${id}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${id}')">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  area.innerHTML = `<div style="overflow-x:auto">
+    <table class="data-table"><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+function openCreateModal() {
+  editingRow = null;
+  document.getElementById('modalTitle').textContent = '新增记录 - ' + getName(currentTable);
+  renderForm();
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function editRow(id) {
+  editingRow = currentData.find(r => (r.id || r.ID) == id);
+  if (!editingRow) return;
+  document.getElementById('modalTitle').textContent = '编辑记录 - ' + getName(currentTable);
+  renderForm(editingRow);
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function renderForm(data = {}) {
+  const form = document.getElementById('modalForm');
+  let html = '';
+  for (const col of currentColumns) {
+    if (col.extra === 'auto_increment' || col.name === 'id' || col.name === 'ID') continue;
+    const val = data[col.name] !== undefined ? data[col.name] : '';
+    const isRequired = !col.nullable && col.default === '' && col.extra !== 'auto_increment';
+    let input;
+    const type = (col.type || '').toLowerCase();
+    if (type.includes('text') || type.includes('blob')) {
+      input = `<textarea name="${col.name}" ${isRequired ? 'required' : ''}>${h(val)}</textarea>`;
+    } else if (type.includes('json')) {
+      input = `<textarea name="${col.name}" ${isRequired ? 'required' : ''}>${typeof val === 'object' ? JSON.stringify(val) : h(val)}</textarea>`;
+    } else if (type.includes('datetime') || type.includes('timestamp')) {
+      input = `<input type="text" name="${col.name}" value="${h(val)}" ${isRequired ? 'required' : ''} placeholder="YYYY-MM-DD HH:MM:SS">`;
+    } else if (type.includes('decimal')) {
+      input = `<input type="number" step="0.01" name="${col.name}" value="${h(val)}" ${isRequired ? 'required' : ''}>`;
+    } else if (type.includes('int')) {
+      input = `<input type="number" name="${col.name}" value="${h(val)}" ${isRequired ? 'required' : ''}>`;
+    } else {
+      input = `<input type="text" name="${col.name}" value="${h(val)}" ${isRequired ? 'required' : ''}>`;
+    }
+    html += `<div class="form-group">
+      <label>${col.name} ${isRequired ? '<span style="color:#ef4444">*</span>' : ''}<span class="hint">${col.type || ''}</span></label>
+      ${input}
+    </div>`;
+  }
+  form.innerHTML = html;
+}
+
+function h(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function submitForm() {
+  const form = document.getElementById('modalForm');
+  const inputs = form.querySelectorAll('input, textarea');
+  const data = {};
+  for (const input of inputs) {
+    if (!input.name) continue;
+    let val = input.value;
+    // 尝试解析 JSON
+    const col = currentColumns.find(c => c.name === input.name);
+    if (col && (col.type || '').toLowerCase().includes('json') && val) {
+      try { val = JSON.parse(val); } catch(e) {}
+    }
+    // 数字类型转换
+    if (col && ((col.type || '').toLowerCase().includes('int') || (col.type || '').toLowerCase().includes('decimal'))) {
+      if (val !== '') val = (col.type || '').toLowerCase().includes('decimal') ? parseFloat(val) : parseInt(val);
+    }
+    data[input.name] = val;
+  }
+
+  let res;
+  if (editingRow) {
+    const id = editingRow.id || editingRow.ID;
+    res = await apiFetch('/admin/tables/' + currentTable + '/' + id, { method: 'PUT', body: JSON.stringify(data) });
+  } else {
+    res = await apiFetch('/admin/tables/' + currentTable, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  if (res && res.code === 200) {
+    showToast(res.message || '操作成功');
+    closeModal();
+    selectTable(currentTable);
+    loadTables();
+  } else {
+    showToast(res?.message || '操作失败', 'error');
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  editingRow = null;
+}
+
+function confirmDelete(id) {
+  pendingDelete = id;
+  document.getElementById('confirmMsg').textContent = '确定要删除这条记录（ID: ' + id + '）吗？此操作不可撤销。';
+  document.getElementById('confirmOverlay').classList.add('show');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('show');
+  pendingDelete = null;
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  const res = await apiFetch('/admin/tables/' + currentTable + '/' + pendingDelete, { method: 'DELETE' });
+  if (res && res.code === 200) {
+    showToast('删除成功');
+    closeConfirm();
+    selectTable(currentTable);
+    loadTables();
+  } else {
+    showToast(res?.message || '删除失败', 'error');
+    closeConfirm();
+  }
+});
+
+// 点击遮罩关闭弹窗
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+init();
+</script>
+</body>
+</html>

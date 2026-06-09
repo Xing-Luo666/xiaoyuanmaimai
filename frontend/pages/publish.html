@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发布商品 - 校园二手交易平台</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+.publish-wrap { max-width:660px; margin:20px auto; padding:0 20px }
+.publish-card { background:var(--white); border-radius:var(--radius-lg); border:1px solid var(--border); padding:30px; box-shadow:var(--shadow) }
+.publish-card h2 { font-size:20px; margin-bottom:24px }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px }
+@media (max-width:600px) { .form-row { grid-template-columns:1fr } .publish-card { padding:18px } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div class="logo-text" style="font-size:16px">发布商品</div></div>
+  <div>
+    <a href="products.html" class="btn">← 返回列表</a>
+    <a href="../index.html" class="btn">首页</a>
+  </div>
+</div>
+
+<div class="publish-wrap">
+  <div class="publish-card">
+    <h2>📦 发布商品</h2>
+    <form id="publishForm">
+      <div class="form-group"><label class="form-label">商品标题 *</label><input type="text" class="form-input" id="title" placeholder="例：九成新 iPhone 14 128G" required></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">分类 *</label><select class="form-select" id="category" required></select></div>
+        <div class="form-group"><label class="form-label">成色</label><select class="form-select" id="condition"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">售价 (元) *</label><input type="number" class="form-input" id="price" placeholder="0.00" required step="0.01" min="0"></div>
+        <div class="form-group"><label class="form-label">原价 (元)</label><input type="number" class="form-input" id="oriPrice" placeholder="选填" step="0.01" min="0"></div>
+      </div>
+      <div class="form-group"><label class="form-label">所在校区 *</label><select class="form-select" id="campus" required></select></div>
+      <div class="form-group"><label class="form-label">商品描述</label><textarea class="form-input" id="description" placeholder="详细描述商品状况、购买时间、使用频率等..." rows="5"></textarea></div>
+      <button type="submit" class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="submitBtn"><span id="btnText">发布商品</span></button>
+    </form>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+(function() {
+  api.verifyAndInit().then(function(ok) {
+    if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
+  });
+
+  CATEGORIES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('category').appendChild(opt); });
+  CONDITIONS.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('condition').appendChild(opt); });
+  CAMPUSES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('campus').appendChild(opt); });
+
+  document.getElementById('publishForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    document.getElementById('btnText').textContent = '提交中...';
+    var data = {
+      title: document.getElementById('title').value.trim(),
+      description: document.getElementById('description').value.trim(),
+      category: document.getElementById('category').value,
+      price: parseFloat(document.getElementById('price').value),
+      oriPrice: parseFloat(document.getElementById('oriPrice').value) || 0,
+      condition: document.getElementById('condition').value,
+      campus: document.getElementById('campus').value
+    };
+    api.post('/products', data).then(function(res) {
+      btn.disabled = false;
+      document.getElementById('btnText').textContent = '发布商品';
+      if (res.code === 200) {
+        alert('发布成功！');
+        location.href = 'product-detail.html?id=' + res.data.id;
+      } else {
+        alert(res.message || '发布失败');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

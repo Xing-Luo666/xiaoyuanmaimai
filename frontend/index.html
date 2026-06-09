@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园二手交易 — 淘在校园，闲置变宝</title>
+<link rel="stylesheet" href="css/mall.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <div class="top-nav-inner">
+    <span>欢迎来到校园二手交易平台！</span>
+    <a id="dbStatusBar" href="pages/db-config.html" style="display:none;align-items:center;gap:6px;font-size:12px;text-decoration:none;color:inherit;">
+      <span style="color:var(--text-light)">数据库:</span>
+      <span id="dbStatusDot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9CA3AF"></span>
+      <span id="dbStatusText" style="color:var(--text-light)">检测中...</span>
+    </a>
+    <a id="adminLink" href="pages/admin.html" style="display:none;font-size:12px;color:var(--text-light);text-decoration:none;">数据管理</a>
+    <div id="topNavRight">
+      <a href="pages/login.html">请登录</a>
+      <a href="pages/register.html">免费注册</a>
+    </div>
+  </div>
+</div>
+
+<header class="main-header" id="mainHeader">
+  <div class="header-inner">
+    <div class="logo-area" onclick="location.href='/'">
+      <div class="logo-icon">📚</div>
+      <div>
+        <div class="logo-text">校园二手</div>
+        <div class="logo-sub">闲置交易平台</div>
+      </div>
+    </div>
+    <div class="search-area">
+      <input type="text" id="mainSearch" placeholder="搜索你想要的闲置好物..." onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="search-btn" onclick="doSearch()">搜索</button>
+    </div>
+    <div class="header-icons">
+      <div class="header-icon-item" onclick="location.href='pages/orders.html'" title="我的订单">
+        📋 <span>订单</span>
+      </div>
+      <div class="header-icon-item" onclick="location.href='pages/publish.html'" title="发布闲置">
+        ➕ <span>发布</span>
+      </div>
+      <div class="header-icon-item" onclick="location.href='pages/profile.html'" title="个人中心">
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#2563EB);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="headerAvatar">👤</div>
+        <span>我的</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="cat-nav" id="catNav">
+  <div class="cat-nav-inner">
+    <div class="cat-nav-item active">全部宝贝</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=electronics'">📱 数码电子</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=books'">📖 书籍教材</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=furniture'">🏠 生活家居</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=sports'">⚽ 运动户外</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=entertainment'">🎮 娱乐玩具</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=clothing'">👗 服饰鞋包</div>
+    <div class="cat-nav-item" onclick="location.href='pages/products.html?category=beauty'">💄 美妆护肤</div>
+  </div>
+</nav>
+
+<div class="banner-wrap">
+  <div class="banner-carousel" id="bannerCarousel">
+    <div class="banner-slide active">
+      <div class="banner-content">
+        <h2>🎓 校园闲置交易集市</h2>
+        <p>学长学姐好物转让 · 品质有保障 · 校内面交更安心</p>
+      </div>
+    </div>
+    <div class="banner-slide">
+      <div class="banner-content">
+        <h2>📱 数码好物 学生价</h2>
+        <p>iPhone · iPad · 耳机 · 相机 — 应有尽有</p>
+      </div>
+    </div>
+    <div class="banner-dots" id="bannerDots"></div>
+  </div>
+</div>
+
+<div class="home-features">
+  <div class="feature-card">
+    <div class="feature-icon">📦</div>
+    <div class="feature-title">品类齐全</div>
+    <div class="feature-desc">数码书籍生活用品</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">🤝</div>
+    <div class="feature-title">校内面交</div>
+    <div class="feature-desc">安全可靠即刻响应</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">🔒</div>
+    <div class="feature-title">实名认证</div>
+    <div class="feature-desc">品质保障交易放心</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">💰</div>
+    <div class="feature-title">超值好价</div>
+    <div class="feature-desc">二手价格天天实惠</div>
+  </div>
+</div>
+
+<div class="section-wrap">
+  <div class="section-header">
+    <div class="section-title">📂 全部分类</div>
+  </div>
+  <div class="cat-grid" id="categoryGrid"></div>
+</div>
+
+<div class="section-wrap">
+  <div class="section-header">
+    <div class="section-title">🔥 推荐商品</div>
+    <div class="section-more" onclick="location.href='pages/products.html'">查看更多 →</div>
+  </div>
+  <div class="product-grid" id="recommendGrid"></div>
+</div>
+
+<div class="section-wrap">
+  <div class="section-header">
+    <div class="section-title">🆕 最新上架</div>
+    <div class="section-more" onclick="location.href='pages/products.html?sort=newest'">查看更多 →</div>
+  </div>
+  <div class="product-grid" id="newestGrid"></div>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-col">
+      <h4>购物指南</h4>
+      <a href="pages/products.html">浏览商品</a>
+      <a href="pages/publish.html">发布闲置</a>
+      <a href="pages/login.html">注册账号</a>
+      <a href="pages/orders.html">我的订单</a>
+    </div>
+    <div class="footer-col">
+      <h4>交易方式</h4>
+      <a href="javascript:void(0)">校内自提</a>
+      <a href="javascript:void(0)">当面交易</a>
+      <a href="javascript:void(0)">快递邮寄</a>
+      <a href="javascript:void(0)">校区配送</a>
+    </div>
+    <div class="footer-col">
+      <h4>售后服务</h4>
+      <a href="javascript:void(0)">交易保障</a>
+      <a href="javascript:void(0)">退款说明</a>
+      <a href="javascript:void(0)">纠纷处理</a>
+      <a href="javascript:void(0)">联系客服</a>
+    </div>
+    <div class="footer-col">
+      <h4>关于平台</h4>
+      <a href="javascript:void(0)">平台介绍</a>
+      <a href="javascript:void(0)">联系方式</a>
+      <a href="javascript:void(0)">加入我们</a>
+      <a href="javascript:void(0)">意见反馈</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>校园二手交易平台 © 2024 | 淘在校园 · 闲置变宝 | 统一认证 · 安全交易</p>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+var bannerIdx = 0;
+
+(function init() {
+  renderCategories();
+  renderBannerDots();
+  loadRecommended();
+  loadNewest();
+  startBannerAuto();
+  api.verifyAndInit().then(function(ok) { if (ok) updateUserUI(); });
+  checkDbStatusForAdmin();
+})();
+
+function updateUserUI() {
+  var user = api.getUser();
+  if (!user) return;
+  document.getElementById('topNavRight').innerHTML =
+    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+    '<a href="pages/orders.html">我的订单</a>' +
+    '<a href="pages/publish.html">我要卖闲置</a>' +
+    '<a href="pages/profile.html">个人中心</a>' +
+    '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+  var avatarEl = document.getElementById('headerAvatar');
+  if (avatarEl && user.username) {
+    avatarEl.textContent = user.username[0].toUpperCase();
+  }
+  checkDbStatusForAdmin();
+}
+
+async function checkDbStatusForAdmin() {
+  var user = api.getUser();
+  if (!user || user.role !== 'admin') return;
+  var bar = document.getElementById('dbStatusBar');
+  var dot = document.getElementById('dbStatusDot');
+  var text = document.getElementById('dbStatusText');
+  var adminLink = document.getElementById('adminLink');
+  bar.style.display = 'flex';
+  adminLink.style.display = 'inline';
+  var status = await api.checkDbStatus();
+  if (status && status.connected) {
+    dot.style.background = '#22C55E';
+    text.textContent = '已连接';
+    text.style.color = '#22C55E';
+  } else {
+    dot.style.background = '#EF4444';
+    text.textContent = '未连接';
+    text.style.color = '#EF4444';
+  }
+}
+
+function renderBannerDots() {
+  var slides = document.querySelectorAll('.banner-slide');
+  document.getElementById('bannerDots').innerHTML = Array.from(slides).map(function(_, i) {
+    return '<div class="banner-dot' + (i === 0 ? ' active' : '') + '" onclick="goBanner(' + i + ')"></div>';
+  }).join('');
+}
+
+function changeBanner(dir) {
+  var slides = document.querySelectorAll('.banner-slide');
+  if (!slides.length) return;
+  slides[bannerIdx].classList.remove('active');
+  bannerIdx = (bannerIdx + dir + slides.length) % slides.length;
+  slides[bannerIdx].classList.add('active');
+  document.querySelectorAll('.banner-dot').forEach(function(d, i) { d.classList.toggle('active', i === bannerIdx); });
+}
+
+function goBanner(i) {
+  var slides = document.querySelectorAll('.banner-slide');
+  if (!slides.length) return;
+  slides[bannerIdx].classList.remove('active');
+  bannerIdx = i;
+  slides[bannerIdx].classList.add('active');
+  document.querySelectorAll('.banner-dot').forEach(function(d, j) { d.classList.toggle('active', j === i); });
+}
+
+function startBannerAuto() { setInterval(function() { changeBanner(1); }, 5000); }
+
+function renderCategories() {
+  document.getElementById('categoryGrid').innerHTML = CATEGORIES.map(function(c) {
+    return '<div class="cat-item" onclick="location.href=\'pages/products.html?category=' + c.value + '\'"><div class="cat-icon-circle" style="background:#EFF6FF">' + (c.value === 'electronics' ? '📱' : c.value === 'books' ? '📖' : c.value === 'clothing' ? '👗' : c.value === 'furniture' ? '🛋️' : c.value === 'sports' ? '⚽' : c.value === 'entertainment' ? '🎮' : c.value === 'beauty' ? '💄' : '📦') + '</div><div class="cat-name">' + c.label + '</div></div>';
+  }).join('');
+}
+
+function doSearch() {
+  var kw = document.getElementById('mainSearch').value.trim();
+  if (!kw) return;
+  location.href = 'pages/products.html?keyword=' + encodeURIComponent(kw);
+}
+
+function loadRecommended() {
+  api.get('/products', { status: 'selling', sortBy: 'popular' }).then(function(res) {
+    if (res.code !== 200) return;
+    renderProductGrid('recommendGrid', res.data.list, true);
+  }).catch(function() {});
+}
+
+function loadNewest() {
+  api.get('/products', { status: 'selling', sortBy: 'newest' }).then(function(res) {
+    if (res.code !== 200) return;
+    renderProductGrid('newestGrid', res.data.list, false);
+  }).catch(function() {});
+}
+
+function renderProductGrid(gridId, products) {
+  var grid = document.getElementById(gridId);
+  if (!products || !products.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📦</div><p>暂无商品</p></div>';
+    return;
+  }
+  grid.innerHTML = products.slice(0, 8).map(function(p) {
+    var img = p.images && p.images.length ? p.images[0] : 'https://picsum.photos/seed/' + p.id + '/300/300';
+    var tags = '';
+    if (isNew(p.createdAt)) tags += '<span class="product-tag">NEW</span>';
+    return '<div class="product-card" onclick="location.href=\'pages/product-detail.html?id=' + p.id + '\'"><div class="product-img"><img src="' + img + '" alt="' + escHtml(p.title) + '" loading="lazy" onerror="this.src=\'https://picsum.photos/seed/fb' + p.id + '/300/300\'">' + tags + '</div><div class="product-info"><div class="product-name">' + escHtml(p.title) + '</div><div class="product-price-row"><span class="product-price"><span class="product-price-symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="product-ori-price">¥' + p.oriPrice + '</span>' : '') + '</div><div class="product-meta"><span>' + escHtml(p.sellerName) + '</span><span>👁 ' + p.viewCount + '</span></div></div></div>';
+  }).join('');
+}
+
+function isNew(dateStr) {
+  return (Date.now() - new Date(dateStr).getTime()) < 86400000 * 3;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的订单 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+.orders-wrap { max-width:900px; margin:20px auto; padding:0 20px }
+.orders-tabs { display:flex; gap:0; background:var(--white); border-radius:var(--radius); border:1px solid var(--border); margin-bottom:16px; overflow:hidden }
+.orders-tab { flex:1; text-align:center; padding:12px; font-size:14px; cursor:pointer; transition:all .2s; border-bottom:2px solid transparent; font-weight:500 }
+.orders-tab:hover { color:var(--primary); background:var(--primary-light) }
+.orders-tab.active { color:var(--primary); border-bottom-color:var(--primary); background:var(--primary-light) }
+.order-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); padding:18px; margin-bottom:12px; transition:all .2s }
+.order-card:hover { box-shadow:var(--shadow-hover) }
+.order-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border) }
+.order-card-body { display:flex; gap:14px; align-items:center }
+.order-card-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border) }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+  <div class="top-nav-inner">
+    <span>校园二手交易平台</span>
+    <div id="topNavRight">
+      <a href="../index.html">首页</a>
+      <a href="products.html">商品广场</a>
+      <a href="publish.html">卖闲置</a>
+      <a href="login.html">登录</a>
+    </div>
+  </div>
+</div>
+
+<header class="main-header">
+  <div class="header-inner">
+    <div class="logo-area" onclick="location.href='../index.html'"><div class="logo-icon">📚</div><div><div class="logo-text">我的订单</div></div></div>
+  </div>
+</header>
+
+<div class="orders-wrap">
+  <div class="orders-tabs">
+    <div class="orders-tab active" onclick="switchOrderTab('buyer',this)">🛒 我购买的</div>
+    <div class="orders-tab" onclick="switchOrderTab('seller',this)">💰 我卖出的</div>
+  </div>
+  <div id="ordersContent"></div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+(function() {
+  api.verifyAndInit().then(function(ok) {
+    if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
+    updateNav();
+    switchOrderTab('buyer', document.querySelector('.orders-tab'));
+  });
+})();
+
+function updateNav() {
+  var user = api.getUser();
+  if (!user) return;
+  document.getElementById('topNavRight').innerHTML =
+    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+    '<a href="profile.html">个人中心</a>' +
+    '<a href="publish.html">卖闲置</a>' +
+    '<a href="../index.html" onclick="api.logout()">退出</a>';
+}
+
+function switchOrderTab(role, el) {
+  document.querySelectorAll('.orders-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  loadOrders(role);
+}
+
+function loadOrders(role) {
+  api.get('/orders', { role: role }).then(function(res) {
+    var ct = document.getElementById('ordersContent');
+    if (res.code !== 200 || !res.data.list || !res.data.list.length) {
+      ct.innerHTML = '<div class="empty-state"><div class="empty-icon">' + (role === 'buyer' ? '🛒' : '💰') + '</div><p>暂无' + (role === 'buyer' ? '购买' : '卖出') + '记录</p><br><a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a></div>';
+      return;
+    }
+    ct.innerHTML = res.data.list.map(function(o) {
+      var statusLabel = o.status === 'pending' ? '待处理' : o.status === 'accepted' ? '已接受' : o.status === 'completed' ? '已完成' : o.status === 'rejected' ? '已拒绝' : o.status === 'cancelled' ? '已取消' : o.status;
+      return '<div class="order-card"><div class="order-card-header"><div><b>' + escHtml(o.productTitle) + '</b></div><span class="order-status-badge" style="background:' + (o.status === 'completed' || o.status === 'accepted' ? '#DCFCE7' : o.status === 'pending' ? '#FEF3C7' : '#F1F5F9') + ';color:' + (o.status === 'completed' ? '#16A34A' : o.status === 'rejected' ? '#EF4444' : '#D97706') + '">' + statusLabel + '</span></div><div class="order-card-body"><div class="order-item-img" style="font-size:20px;">' + (role === 'buyer' ? '🛒' : '💰') + '</div><div class="order-item-info"><div>' + (role === 'buyer' ? '卖家' : '买家') + ': <b>' + escHtml(role === 'buyer' ? o.sellerName : o.buyerName) + '</b></div><div class="order-item-meta">价格：<span style="color:var(--price);font-weight:700">¥' + o.price + '</span> · ' + formatDate(o.createdAt) + '</div></div></div>' + (o.status === 'pending' && role === 'seller' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'accepted\')">接受</button><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'rejected\')">拒绝</button></div>' : '') + (o.status === 'accepted' && role === 'buyer' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'completed\')">确认收货</button></div>' : '') + (o.status === 'pending' && role === 'buyer' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'cancelled\')">取消订单</button></div>' : '') + '</div>';
+    }).join('');
+  }).catch(function() {});
+}
+
+function handleOrder(orderId, status) {
+  api.put('/orders/' + orderId + '/status', { status: status }).then(function(res) {
+    if (res.code === 200) { alert('操作成功！'); location.reload(); }
+    else { alert(res.message || '操作失败'); }
+  });
+}
+
+function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+</script>
+</body>
+</html>

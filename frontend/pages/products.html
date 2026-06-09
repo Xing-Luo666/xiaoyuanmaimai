@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品广场 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <div class="top-nav-inner">
+    <span>校园二手交易平台</span>
+    <div id="topNavRight">
+      <a href="../index.html">首页</a>
+      <a href="orders.html">我的订单</a>
+      <a href="publish.html">卖闲置</a>
+      <a href="login.html">登录</a>
+    </div>
+  </div>
+</div>
+
+<header class="main-header">
+  <div class="header-inner">
+    <div class="logo-area" onclick="location.href='../index.html'">
+      <div class="logo-icon">📚</div>
+      <div><div class="logo-text">商品广场</div><div class="logo-sub">发现好物</div></div>
+    </div>
+    <div class="search-area"><input type="text" id="listSearch" placeholder="搜索商品关键词..." onkeydown="if(event.key==='Enter')applyFilters()"><button class="search-btn" onclick="applyFilters()">搜索</button></div>
+  </div>
+</header>
+
+<nav class="cat-nav">
+  <div class="cat-nav-inner">
+    <div class="cat-nav-item active" onclick="setCategory('all')">全部</div>
+    <div class="cat-nav-item" onclick="setCategory('electronics')">📱 数码</div>
+    <div class="cat-nav-item" onclick="setCategory('books')">📖 书籍</div>
+    <div class="cat-nav-item" onclick="setCategory('furniture')">🏠 家居</div>
+    <div class="cat-nav-item" onclick="setCategory('sports')">⚽ 运动</div>
+    <div class="cat-nav-item" onclick="setCategory('entertainment')">🎮 娱乐</div>
+    <div class="cat-nav-item" onclick="setCategory('clothing')">👗 服饰</div>
+  </div>
+</nav>
+
+<div class="products-wrap">
+  <aside class="filter-sidebar" id="filterSidebar">
+    <h4>筛选条件</h4>
+    <div class="filter-group"><div class="group-name">分类</div><div class="filter-options" id="catFilters"></div></div>
+    <div class="filter-group"><div class="group-name">校区</div><div class="filter-options" id="campusFilters"></div></div>
+    <div class="filter-group"><div class="group-name">价格区间</div><div class="filter-price-input"><input type="number" id="priceMin" placeholder="最低价"><span>-</span><input type="number" id="priceMax" placeholder="最高价"></div></div>
+    <button class="mall-btn mall-btn-primary mall-btn-block" onclick="applyFilters()">确定筛选</button>
+    <button class="mall-btn mall-btn-outline mall-btn-block" style="margin-top:8px" onclick="resetAll()">重置条件</button>
+  </aside>
+
+  <section class="products-main">
+    <div class="sort-row">
+      <div class="sort-tabs">
+        <div class="sort-tab active" data-sort="newest" onclick="setSort('newest',this)">最新</div>
+        <div class="sort-tab" data-sort="popular" onclick="setSort('popular',this)">最热</div>
+        <div class="sort-tab" data-sort="price_asc" onclick="setSort('price_asc',this)">价格↑</div>
+        <div class="sort-tab" data-sort="price_desc" onclick="setSort('price_desc',this)">价格↓</div>
+      </div>
+      <div class="sort-count" id="resultCount">共 0 件商品</div>
+    </div>
+    <div class="product-grid" id="productListGrid"></div>
+  </section>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+var currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'newest' };
+
+(function init() {
+  var params = new URLSearchParams(location.search);
+  if (params.get('category')) currentFilters.category = params.get('category');
+  if (params.get('keyword')) { currentFilters.keyword = params.get('keyword'); document.getElementById('listSearch').value = params.get('keyword'); }
+  if (params.get('sort')) currentFilters.sortBy = params.get('sort');
+  renderFilterOptions();
+  highlightCatNav();
+  highlightSortTab();
+  loadProducts();
+  api.verifyAndInit().then(function(ok) { if (ok) updateNav(); });
+})();
+
+function updateNav() {
+  var user = api.getUser();
+  if (!user) return;
+  document.getElementById('topNavRight').innerHTML =
+    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+    '<a href="orders.html">我的订单</a>' +
+    '<a href="profile.html">个人中心</a>' +
+    '<a href="../index.html" onclick="api.logout()">退出</a>';
+}
+
+function renderFilterOptions() {
+  document.getElementById('catFilters').innerHTML = [{v:'all',l:'全部'}].concat(CATEGORIES).map(function(c) {
+    return '<span class="filter-opt' + (currentFilters.category === c.value ? ' active' : '') + '" onclick="currentFilters.category=\'' + c.value + '\';renderFilterOptions();applyFilters()">' + c.label + '</span>';
+  }).join('');
+  document.getElementById('campusFilters').innerHTML = [{v:'all',l:'全部校区'}].concat(CAMPUSES).map(function(c) {
+    return '<span class="filter-opt' + (currentFilters.campus === c.value ? ' active' : '') + '" onclick="currentFilters.campus=\'' + c.value + '\';renderFilterOptions();applyFilters()">' + c.label + '</span>';
+  }).join('');
+}
+
+function setCategory(cat) { currentFilters.category = cat; renderFilterOptions(); highlightCatNav(); applyFilters(); }
+function setSort(sort, el) { currentFilters.sortBy = sort; document.querySelectorAll('.sort-tab').forEach(function(t) { t.classList.remove('active'); }); el.classList.add('active'); applyFilters(); }
+
+function highlightCatNav() {
+  document.querySelectorAll('.cat-nav-item').forEach(function(item, i) { item.classList.toggle('active', i === 0 && currentFilters.category === 'all'); });
+}
+function highlightSortTab() {
+  document.querySelectorAll('.sort-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.sort === currentFilters.sortBy); });
+}
+function applyFilters() { currentFilters.keyword = document.getElementById('listSearch').value.trim(); loadProducts(); }
+
+function resetAll() {
+  currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'newest' };
+  document.getElementById('listSearch').value = '';
+  document.getElementById('priceMin').value = '';
+  document.getElementById('priceMax').value = '';
+  document.querySelectorAll('.cat-nav-item').forEach(function(i, idx) { i.classList.toggle('active', idx === 0); });
+  document.querySelectorAll('.sort-tab').forEach(function(i, idx) { i.classList.toggle('active', idx === 0); });
+  renderFilterOptions();
+  loadProducts();
+}
+
+function loadProducts() {
+  var query = { status: 'selling', sortBy: currentFilters.sortBy };
+  if (currentFilters.keyword) query.keyword = currentFilters.keyword;
+  if (currentFilters.category !== 'all') query.category = currentFilters.category;
+  if (currentFilters.campus !== 'all') query.campus = currentFilters.campus;
+  api.get('/products', query).then(function(res) {
+    var grid = document.getElementById('productListGrid');
+    if (res.code !== 200 || !res.data.list || !res.data.list.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📭</div><p>没有找到相关商品</p></div>';
+      document.getElementById('resultCount').textContent = '共 0 件商品';
+      return;
+    }
+    var filtered = res.data.list;
+    var minP = parseFloat(document.getElementById('priceMin').value) || 0;
+    var maxP = parseFloat(document.getElementById('priceMax').value) || 0;
+    if (minP > 0) filtered = filtered.filter(function(p) { return p.price >= minP; });
+    if (maxP > 0) filtered = filtered.filter(function(p) { return p.price <= maxP; });
+    document.getElementById('resultCount').textContent = '共 ' + filtered.length + ' 件商品';
+    grid.innerHTML = filtered.map(function(p) { return renderProductCard(p); }).join('');
+  }).catch(function() {});
+}
+
+function renderProductCard(p) {
+  var img = p.images && p.images.length ? p.images[0] : 'https://picsum.photos/seed/p' + p.id + '/300/300';
+  var tags = '';
+  if ((Date.now() - new Date(p.createdAt).getTime()) < 86400000 * 3) tags += '<span class="product-tag">NEW</span>';
+  return '<div class="product-card" onclick="location.href=\'product-detail.html?id=' + p.id + '\'"><div class="product-img"><img src="' + img + '" alt="' + escHtml(p.title) + '" loading="lazy" onerror="this.src=\'https://picsum.photos/seed/fb' + p.id + '/300/300\'">' + tags + '</div><div class="product-info"><div class="product-name">' + escHtml(p.title) + '</div><div class="product-price-row"><span class="product-price"><span class="product-price-symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="product-ori-price">¥' + p.oriPrice + '</span>' : '') + '</div><div class="product-meta"><span>' + getCategoryLabel(p.category) + '</span><span>' + getCampusLabel(p.campus) + '</span></div></div></div>';
+}
+
+function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+</script>
+</body>
+</html>

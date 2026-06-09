@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height:100vh; display:flex; align-items:center; justify-content:center }
+.login-footer { text-align:center; margin-top:24px; color:var(--text-light); font-size:12px }
+</style>
+</head>
+<body>
+
+<div>
+  <div class="login-wrap" style="margin:0">
+    <div class="l-card">
+      <div class="login-logo" style="text-align:center;margin-bottom:20px">
+        <div class="logo-icon" style="margin:0 auto 8px">📚</div>
+        <h3>校园二手交易</h3>
+        <p style="color:var(--text-light);font-size:12px;margin-top:4px">统一身份认证 · 安全登录</p>
+      </div>
+      <div class="error-tip" id="errorTip" style="background:#FEF2F2;color:#EF4444;border:1px solid #FECACA;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none"></div>
+      <div class="l-input-wrap"><span class="l-icon">👤</span><input type="text" class="form-input" id="username" placeholder="请输入用户名" value="admin"></div>
+      <div class="l-input-wrap"><span class="l-icon">🔒</span><input type="password" class="form-input" id="password" placeholder="请输入密码" value="admin123" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="loginBtn" onclick="doLogin()"><span id="btnText">登 录</span></button>
+      <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:13px"><a href="register.html">免费注册</a><a href="javascript:void(0)" style="color:var(--text-light)">忘记密码</a></div>
+    </div>
+  </div>
+  <div class="login-footer">Copyright © 2024 校园二手交易平台</div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+(function() { if (api.isLoggedIn()) { location.href = '../index.html'; return; } })();
+function doLogin() {
+  var u = document.getElementById('username').value.trim();
+  var p = document.getElementById('password').value;
+  var err = document.getElementById('errorTip');
+  if (!u || !p) { err.textContent = '请输入账号和密码'; err.style.display = 'block'; return; }
+  err.style.display = 'none';
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('btnText').textContent = '登录中...';
+  api.login(u, p).then(function(res) {
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('btnText').textContent = '登 录';
+    if (res.code === 200) {
+      var redir = new URLSearchParams(location.search).get('redirect');
+      location.href = redir || '../index.html';
+    } else {
+      err.textContent = res.message || '登录失败';
+      err.style.display = 'block';
+    }
+  });
+}
+</script>
+</body>
+</html>

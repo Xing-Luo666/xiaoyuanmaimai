@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品详情 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <div class="top-nav-inner">
+    <span>校园二手交易平台</span>
+    <div id="topNavRight">
+      <a href="../index.html">首页</a>
+      <a href="products.html">商品广场</a>
+      <a href="orders.html">我的订单</a>
+      <a href="login.html">登录</a>
+    </div>
+  </div>
+</div>
+
+<header class="main-header">
+  <div class="header-inner">
+    <div class="logo-area" onclick="location.href='../index.html'"><div class="logo-icon">📚</div><div><div class="logo-text">商品详情</div></div></div>
+    <div class="search-area"><input type="text" placeholder="搜索更多好物..." onkeydown="if(event.key==='Enter')location.href='products.html?keyword='+encodeURIComponent(this.value)"><button class="search-btn" onclick="location.href='products.html?keyword='+encodeURIComponent(document.querySelector('.search-area input').value)">搜索</button></div>
+  </div>
+</header>
+
+<div class="detail-wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a> / <a href="products.html">商品广场</a> / <span>商品详情</span></div>
+  <div id="detailContent" style="text-align:center;padding:80px;"><div class="empty-icon" style="font-size:48px">⏳</div><p style="margin-top:12px;color:var(--text-light)">加载中...</p></div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+var currentProduct = null;
+var galleryIdx = 0;
+
+(function() {
+  api.verifyAndInit().then(function(ok) { if (ok) updateNav(); });
+  var id = new URLSearchParams(location.search).get('id');
+  if (!id) { document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">❌</div><p>参数错误</p></div>'; return; }
+  api.get('/products/' + id).then(function(res) {
+    if (res.code !== 200) { document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>商品不存在或已下架</p></div>'; return; }
+    currentProduct = res.data;
+    renderDetail(res.data);
+  }).catch(function() {
+    document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>加载失败</p></div>';
+  });
+})();
+
+function updateNav() {
+  var user = api.getUser();
+  if (!user) return;
+  document.getElementById('topNavRight').innerHTML =
+    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+    '<a href="orders.html">我的订单</a>' +
+    '<a href="profile.html">个人中心</a>' +
+    '<a href="../index.html" onclick="api.logout()">退出</a>';
+}
+
+function renderDetail(p) {
+  var imgs = p.images && p.images.length ? p.images : ['https://picsum.photos/seed/detail' + p.id + '/600/600'];
+  var discount = p.oriPrice > p.price ? Math.round((1 - p.price / p.oriPrice) * 100) : 0;
+  var user = api.getUser();
+  var isOwner = user && user.userId === p.sellerId;
+  var actionHTML = '';
+  if (!user) {
+    actionHTML = '<button class="btn-buy-now" onclick="location.href=\'login.html?redirect=\'+encodeURIComponent(location.href)">登录后购买</button>';
+  } else if (isOwner) {
+    actionHTML = '<span style="padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:var(--text-light);flex:1">这是你的商品</span>';
+  } else if (p.status === 'selling') {
+    actionHTML = '<button class="btn-buy-now" onclick="buyNow()">立即购买</button>';
+  } else {
+    actionHTML = '<span style="padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:var(--text-light);flex:1">' + p.status + '</span>';
+  }
+
+  document.getElementById('detailContent').innerHTML =
+    '<div class="detail-main"><div><div class="gallery-main"><img src="' + imgs[galleryIdx] + '" alt="' + escHtml(p.title) + '" id="galleryMainImg">' + (imgs.length > 1 ? '<div class="gallery-nav prev" onclick="galleryPrev()">◂</div><div class="gallery-nav next" onclick="galleryNext()">▸</div>' : '') + '</div>' + (imgs.length > 1 ? '<div class="gallery-thumbs" id="galleryThumbs"></div>' : '') + '</div><div class="detail-info"><div class="detail-title">' + escHtml(p.title) + '</div><div class="detail-price-box"><div class="detail-price-label">价格</div><span class="detail-price-current"><span class="symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="detail-price-ori">¥' + p.oriPrice + '</span>' : '') + '</div><div class="detail-meta-row"><div class="detail-meta-item">分类：<b>' + getCategoryLabel(p.category) + '</b></div><div class="detail-meta-item">校区：<b>' + getCampusLabel(p.campus) + '</b></div><div class="detail-meta-item">成色：<b>' + getConditionLabel(p.condition) + '</b></div><div class="detail-meta-item">浏览：<b>' + p.viewCount + '</b></div></div><div class="detail-desc-box">' + escHtml(p.description || '暂无描述') + '</div><div class="detail-seller-box"><div class="detail-seller-avatar">' + (p.sellerName ? p.sellerName[0] : '?') + '</div><div class="detail-seller-info"><div class="detail-seller-name">' + escHtml(p.sellerName) + '</div><div class="detail-seller-meta">卖家</div></div></div><div class="detail-actions">' + actionHTML + '</div></div></div>';
+
+  if (imgs.length > 1) {
+    document.getElementById('galleryThumbs').innerHTML = imgs.map(function(img, i) {
+      return '<div class="gallery-thumb' + (i === 0 ? ' active' : '') + '" onclick="galleryIdx=' + i + ';updateGallery()"><img src="' + img + '"></div>';
+    }).join('');
+  }
+}
+
+function galleryPrev() {
+  var imgs = currentProduct.images;
+  if (!imgs || !imgs.length) return;
+  galleryIdx = (galleryIdx - 1 + imgs.length) % imgs.length;
+  updateGallery();
+}
+function galleryNext() {
+  var imgs = currentProduct.images;
+  if (!imgs || !imgs.length) return;
+  galleryIdx = (galleryIdx + 1) % imgs.length;
+  updateGallery();
+}
+function updateGallery() {
+  var imgs = currentProduct.images;
+  document.getElementById('galleryMainImg').src = imgs[galleryIdx];
+  var thumbs = document.querySelectorAll('.gallery-thumb');
+  thumbs.forEach(function(t, i) { t.classList.toggle('active', i === galleryIdx); });
+}
+
+function buyNow() {
+  var msg = prompt('给卖家留言（选填）：');
+  api.post('/orders', { productId: currentProduct.id, message: msg || '' }).then(function(res) {
+    if (res.code === 200) {
+      alert('下单成功！');
+      location.reload();
+    } else {
+      alert(res.message || '下单失败');
+    }
+  });
+}
+
+function getConditionLabel(v) {
+  return v === 'new' ? '全新' : v === 'like_new' ? '几乎全新' : v === 'good' ? '良好' : v === 'fair' ? '一般' : v === 'old' ? '老旧' : v || '未知';
+}
+
+function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+</script>
+</body>
+</html>

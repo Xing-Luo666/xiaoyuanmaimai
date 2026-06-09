@@ -1,0 +1,22 @@
+# Go binaries
+*.exe
+*.exe~
+
+# Backend data
+backend/data/
+
+# Node.js
+backend-node/
+node_modules/
+
+# IDE
+.trae/
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots
+screenshot-*.png

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据库配置 - 学校二手交易平台</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.5em;
+    }
+    .header .back-link {
+      color: white;
+      text-decoration: none;
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+    .header .back-link:hover {
+      opacity: 1;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      margin: 0 0 24px;
+      font-size: 1.3em;
+      color: #333;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      margin-bottom: 24px;
+    }
+    .status-badge.connected {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .status-badge.disconnected {
+      background: #fbe9e7;
+      color: #c62828;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #555;
+      font-size: 0.9em;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1em;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .form-row {
+      display: flex;
+      gap: 16px;
+    }
+    .form-row .form-group {
+      flex: 1;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      width: 100%;
+      justify-content: center;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(102,126,234,0.4);
+    }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .message {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9em;
+      display: none;
+    }
+    .message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      display: block;
+    }
+    .message.error {
+      background: #fbe9e7;
+      color: #c62828;
+      display: block;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: none;
+    }
+    .btn.loading .spinner {
+      display: inline-block;
+    }
+    .btn.loading .btn-text {
+      display: none;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .info-text {
+      font-size: 0.85em;
+      color: #888;
+      margin-top: 16px;
+      line-height: 1.6;
+    }
+    .info-text code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/" class="back-link">← 返回首页</a>
+    <h1>数据库配置</h1>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>MySQL 连接设置</h2>
+      <div id="statusBadge" class="status-badge disconnected">
+        <span class="status-dot"></span>
+        <span id="statusText">未连接</span>
+      </div>
+
+      <form id="configForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="host">主机地址</label>
+            <input type="text" id="host" placeholder="127.0.0.1" required>
+          </div>
+          <div class="form-group">
+            <label for="port">端口</label>
+            <input type="number" id="port" placeholder="3306" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="user">用户名</label>
+            <input type="text" id="user" placeholder="root" required>
+          </div>
+          <div class="form-group">
+            <label for="dbName">数据库名</label>
+            <input type="text" id="dbName" placeholder="school_trade" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" placeholder="请输入密码" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span class="spinner"></span>
+          <span class="btn-text">保存并连接</span>
+        </button>
+      </form>
+
+      <div id="message" class="message"></div>
+
+      <div class="info-text">
+        <p>提示：</p>
+        <ul>
+          <li>请确保 MySQL 服务已启动，数据库 <code>school_trade</code> 已创建</li>
+          <li>修改配置后会自动重新连接数据库</li>
+          <li>配置保存在 <code>backend/data/db-config.json</code> 文件中</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+
+    async function loadConfig() {
+      try {
+        const res = await fetch(API_BASE + '/db-config');
+        const data = await res.json();
+        if (data.code === 200) {
+          document.getElementById('host').value = data.data.host || '127.0.0.1';
+          document.getElementById('port').value = data.data.port || '3306';
+          document.getElementById('user').value = data.data.user || 'root';
+          document.getElementById('dbName').value = data.data.dbName || 'school_trade';
+          document.getElementById('password').value = data.data.password || '';
+          updateStatus(data.data.connected);
+        }
+      } catch (err) {
+        showMessage('加载配置失败: ' + err.message, 'error');
+      }
+    }
+
+    function updateStatus(connected) {
+      const badge = document.getElementById('statusBadge');
+      const text = document.getElementById('statusText');
+      if (connected) {
+        badge.className = 'status-badge connected';
+        text.textContent = '已连接';
+      } else {
+        badge.className = 'status-badge disconnected';
+        text.textContent = '未连接';
+      }
+    }
+
+    function showMessage(text, type) {
+      const msg = document.getElementById('message');
+      msg.textContent = text;
+      msg.className = 'message ' + type;
+      msg.style.display = 'block';
+      setTimeout(() => {
+        msg.style.display = 'none';
+      }, 5000);
+    }
+
+    document.getElementById('configForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const btn = document.getElementById('submitBtn');
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      const payload = {
+        host: document.getElementById('host').value.trim(),
+        port: document.getElementById('port').value.trim(),
+        user: document.getElementById('user').value.trim(),
+        password: document.getElementById('password').value,
+        dbName: document.getElementById('dbName').value.trim(),
+      };
+
+      try {
+        const res = await fetch(API_BASE + '/db-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.code === 200) {
+          showMessage(data.message, 'success');
+          updateStatus(true);
+        } else {
+          showMessage(data.message, 'error');
+          updateStatus(false);
+        }
+      } catch (err) {
+        showMessage('请求失败: ' + err.message, 'error');
+        updateStatus(false);
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    });
+
+    loadConfig();
+  </script>
+</body>
+</html>
