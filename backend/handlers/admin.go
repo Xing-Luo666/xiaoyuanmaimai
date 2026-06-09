@@ -1,20 +1,27 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"school-trade/store"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 var allowedTables = map[string]bool{
-	"users":    true,
-	"products": true,
-	"orders":   true,
+	"users":         true,
+	"products":      true,
+	"orders":        true,
+	"cart_items":    true,
+	"favorites":     true,
+	"history":       true,
+	"chat_messages": true,
 }
 
 type AdminHandler struct {
@@ -26,18 +33,18 @@ func NewAdminHandler(s *store.DBStore) *AdminHandler {
 }
 
 type ColumnInfo struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Nullable   bool   `json:"nullable"`
-	Key        string `json:"key"`
-	Default    string `json:"default"`
-	Extra      string `json:"extra"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
+	Key      string `json:"key"`
+	Default  string `json:"default"`
+	Extra    string `json:"extra"`
 }
 
 type TableInfo struct {
-	Name    string       `json:"name"`
-	Columns []ColumnInfo `json:"columns"`
-	RowCount int         `json:"rowCount"`
+	Name     string       `json:"name"`
+	Columns  []ColumnInfo `json:"columns"`
+	RowCount int          `json:"rowCount"`
 }
 
 func (h *AdminHandler) ListTables(c *gin.Context) {
@@ -271,12 +278,29 @@ func (h *AdminHandler) CreateRow(c *gin.Context) {
 		}
 		val, exists := req[col.Name]
 		if !exists {
-			if requiredCols[col.Name] {
+			// id 字段自动生成
+			if col.Name == "id" && requiredCols[col.Name] {
+				idPrefix := tableName
+				if idPrefix == "users" {
+					idPrefix = "u"
+				} else if idPrefix == "products" {
+					idPrefix = "p"
+				} else if idPrefix == "orders" {
+					idPrefix = "o"
+				}
+				b := make([]byte, 6)
+				if _, err := rand.Read(b); err != nil {
+					b = []byte(fmt.Sprintf("%d", time.Now().UnixNano()))
+				}
+				val = idPrefix + "-" + hex.EncodeToString(b)
+				req[col.Name] = val
+			} else if requiredCols[col.Name] {
 				tx.Rollback()
 				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少必填字段: " + col.Name})
 				return
+			} else {
+				continue
 			}
-			continue
 		}
 		colList = append(colList, "`"+col.Name+"`")
 		placeholders = append(placeholders, "?")

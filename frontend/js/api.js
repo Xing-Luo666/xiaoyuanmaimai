@@ -195,7 +195,35 @@ const api = {
     } catch(e) {
       return null;
     }
-  }
+  },
+
+  // 购物车
+  async getCart() { return this.get('/cart'); },
+  async addToCart(data) { return this.post('/cart', data); },
+  async updateCartItem(id, data) { return this.put('/cart/' + id, data); },
+  async removeCartItems(ids) {
+    if (Array.isArray(ids) && ids.length) {
+      return this.del('/cart?ids=' + ids.join(','));
+    }
+    return this.del('/cart/' + ids);
+  },
+
+  // 收藏
+  async getFavorites() { return this.get('/favorites'); },
+  async toggleFavorite(data) { return this.post('/favorites', data); },
+  async checkFavorites(ids) {
+    return this.get('/favorites/check?ids=' + ids.join(','));
+  },
+
+  // 点赞
+  async toggleLike(productId) { return this.post('/products/' + productId + '/like'); },
+
+  // 历史
+  async getHistory() { return this.get('/history'); },
+  async addHistory(data) { return this.post('/history', data); },
+
+  // 聊天
+  async getChatHistory(orderId) { return this.get('/chat/' + orderId); }
 };
 
 (function exposeGlobals() {
@@ -238,12 +266,12 @@ var CATEGORIES = [
 ];
 
 var CAMPUSES = [
-  { value: 'main', label: '\u672C\u90E8\u6821\u533A' },
-  { value: 'east', label: '\u4E1C\u6821\u533A' },
-  { value: 'west', label: '\u897F\u6821\u533A' },
-  { value: 'south', label: '\u5357\u6821\u533A' },
-  { value: 'north', label: '\u5317\u6821\u533A' }
+  { value: 'hangkong', label: '航空港校区' },
+  { value: 'longquanyi', label: '龙泉驿校区' }
 ];
+
+var BUILDINGS = Array.from({length:21}, function(_,i){ return {value: String(i+1), label: (i+1)+'栋'}; });
+BUILDINGS.push({value: 'other', label: '其他'});
 
 var CONDITIONS = [
   { value: 'new', label: '\u5168\u65B0' },

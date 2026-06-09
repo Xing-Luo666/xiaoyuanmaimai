@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>浏览历史 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">🕐</div><div class="logo-text" style="font-size:16px">浏览历史</div></div>
+  <div><a href="products.html">商品广场</a><a href="cart.html">购物车</a><a href="favorites.html">收藏</a><a href="../index.html">首页</a></div>
+</div>
+<div class="publish-wrap" style="margin-top:16px">
+  <div id="content" style="text-align:center;padding:80px"><p>⏳ 加载中...</p></div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+(async function() {
+  if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  var res = await api.getHistory();
+  var list = res.data || [];
+  if (list.length === 0) {
+    document.getElementById('content').innerHTML = '<div style="padding:80px;text-align:center"><p style="font-size:48px">🕐</p><p>暂无浏览记录</p><a href="products.html" class="mall-btn mall-btn-primary" style="margin-top:16px">去逛逛</a></div>';
+    return;
+  }
+  var html = '<div class="publish-card"><h2>最近浏览 ('+list.length+')</h2>';
+  list.forEach(function(h) {
+    html += '<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid #f1f5f9;gap:12px;cursor:pointer" onclick="location.href=\'product-detail.html?id='+h.productId+'\'">' +
+      '<img src="'+(h.productImage||'/resources/default-product.gif')+'" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.src=\'/resources/default-product.gif\'">' +
+      '<div style="flex:1"><div style="font-weight:600">'+escHtml(h.productTitle)+'</div><div style="color:#6b7280;font-size:12px">最近浏览: '+formatDate(h.viewedAt)+'</div></div>' +
+      '<div style="color:#ef4444;font-weight:700">¥'+Number(h.price).toFixed(2)+'</div>' +
+      '</div>';
+  });
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
+})();
+function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

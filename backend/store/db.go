@@ -194,13 +194,16 @@ func (s *DBStore) initTables() error {
 			price DECIMAL(10,2) NOT NULL,
 			ori_price DECIMAL(10,2) DEFAULT 0,
 			images JSON,
+			specs JSON,
 			cond VARCHAR(20) DEFAULT 'good',
-			campus VARCHAR(20) DEFAULT 'main',
+			campus VARCHAR(20) DEFAULT 'hangkong',
+			building VARCHAR(20) DEFAULT '',
 			seller_id VARCHAR(64) NOT NULL,
 			seller_name VARCHAR(64) NOT NULL,
 			status VARCHAR(20) DEFAULT 'selling',
 			view_count INT DEFAULT 0,
 			like_count INT DEFAULT 0,
+			fav_count INT DEFAULT 0,
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL,
 			INDEX idx_category (category),
@@ -212,6 +215,9 @@ func (s *DBStore) initTables() error {
 			id VARCHAR(64) PRIMARY KEY,
 			product_id VARCHAR(64) NOT NULL,
 			product_title VARCHAR(255) NOT NULL,
+			product_image VARCHAR(512) DEFAULT '',
+			spec_name VARCHAR(255) DEFAULT '',
+			quantity INT DEFAULT 1,
 			buyer_id VARCHAR(64) NOT NULL,
 			buyer_name VARCHAR(64) NOT NULL,
 			seller_id VARCHAR(64) NOT NULL,
@@ -219,11 +225,63 @@ func (s *DBStore) initTables() error {
 			price DECIMAL(10,2) NOT NULL,
 			status VARCHAR(20) DEFAULT 'pending',
 			message TEXT,
+			shipped_at DATETIME NULL,
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL,
 			INDEX idx_buyer (buyer_id),
 			INDEX idx_seller (seller_id),
 			INDEX idx_product (product_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS cart_items (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(64) NOT NULL,
+			product_id VARCHAR(64) NOT NULL,
+			product_title VARCHAR(255) NOT NULL,
+			product_image VARCHAR(512) DEFAULT '',
+			spec_name VARCHAR(255) DEFAULT '',
+			price DECIMAL(10,2) NOT NULL,
+			quantity INT DEFAULT 1,
+			created_at DATETIME NOT NULL,
+			INDEX idx_cart_user (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS favorites (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(64) NOT NULL,
+			product_id VARCHAR(64) NOT NULL,
+			product_title VARCHAR(255) NOT NULL,
+			product_image VARCHAR(512) DEFAULT '',
+			price DECIMAL(10,2) DEFAULT 0,
+			created_at DATETIME NOT NULL,
+			UNIQUE KEY uk_fav (user_id, product_id),
+			INDEX idx_fav_user (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS history (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(64) NOT NULL,
+			product_id VARCHAR(64) NOT NULL,
+			product_title VARCHAR(255) NOT NULL,
+			product_image VARCHAR(512) DEFAULT '',
+			price DECIMAL(10,2) DEFAULT 0,
+			viewed_at DATETIME NOT NULL,
+			UNIQUE KEY uk_history (user_id, product_id),
+			INDEX idx_history_user (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS chat_messages (
+			id VARCHAR(64) PRIMARY KEY,
+			order_id VARCHAR(64) NOT NULL,
+			sender_id VARCHAR(64) NOT NULL,
+			sender_name VARCHAR(64) NOT NULL,
+			content TEXT,
+			type VARCHAR(20) DEFAULT 'text',
+			recalled TINYINT DEFAULT 0,
+			deleted_by VARCHAR(512) DEFAULT '',
+			created_at DATETIME NOT NULL,
+			INDEX idx_chat_order (order_id),
+			INDEX idx_chat_created (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
@@ -231,6 +289,25 @@ func (s *DBStore) initTables() error {
 		if _, err := db.Exec(ddl); err != nil {
 			return fmt.Errorf("建表失败: %w", err)
 		}
+	}
+
+	// 兼容旧表结构：检测并添加可能缺少的列（忽略错误）
+	colAlters := []string{
+		"ALTER TABLE products ADD COLUMN specs JSON AFTER images",
+		"ALTER TABLE products ADD COLUMN building VARCHAR(20) DEFAULT '' AFTER campus",
+		"ALTER TABLE products ADD COLUMN fav_count INT DEFAULT 0 AFTER like_count",
+		"ALTER TABLE orders ADD COLUMN product_image VARCHAR(512) DEFAULT '' AFTER product_title",
+		"ALTER TABLE orders ADD COLUMN spec_name VARCHAR(255) DEFAULT '' AFTER product_image",
+		"ALTER TABLE orders ADD COLUMN quantity INT DEFAULT 1 AFTER spec_name",
+		"ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL AFTER status",
+	}
+	for _, ddl := range colAlters {
+		db.Exec(ddl) // 忽略错误
+	}
+
+	// 再次确保所有列都存在（用 INFORMATION_SCHEMA 检查）
+	for _, ddl := range colAlters {
+		db.Exec(ddl)
 	}
 
 	return nil

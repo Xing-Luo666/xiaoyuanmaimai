@@ -153,6 +153,8 @@ func main() {
 		authHandler := handlers.NewAuthHandler(dbStore)
 		productHandler := handlers.NewProductHandler(dbStore)
 		orderHandler := handlers.NewOrderHandler(dbStore)
+		socialHandler := handlers.NewSocialHandler(dbStore)
+		chatHandler := handlers.NewChatHandler(dbStore)
 
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
@@ -169,6 +171,7 @@ func main() {
 
 			auth.GET("/products/my", productHandler.MyProducts)
 			auth.POST("/products", productHandler.Create)
+			auth.POST("/upload", productHandler.UploadImage)
 			auth.PUT("/products/:id", productHandler.Update)
 			auth.DELETE("/products/:id", productHandler.Delete)
 
@@ -176,6 +179,29 @@ func main() {
 			auth.GET("/orders", orderHandler.MyOrders)
 			auth.GET("/orders/:id", orderHandler.Get)
 			auth.PUT("/orders/:id/status", orderHandler.UpdateStatus)
+
+			// 购物车
+			auth.GET("/cart", socialHandler.CartList)
+			auth.POST("/cart", socialHandler.CartAdd)
+			auth.PUT("/cart/:id", socialHandler.CartUpdate)
+			auth.DELETE("/cart/:id", socialHandler.CartDelete)
+			auth.DELETE("/cart", socialHandler.CartDelete)
+
+			// 收藏
+			auth.GET("/favorites", socialHandler.FavoriteList)
+			auth.POST("/favorites", socialHandler.FavoriteToggle)
+			auth.GET("/favorites/check", socialHandler.FavoriteCheck)
+
+			// 点赞
+			auth.POST("/products/:id/like", socialHandler.LikeToggle)
+
+			// 历史记录
+			auth.GET("/history", socialHandler.HistoryList)
+			auth.POST("/history", socialHandler.HistoryAdd)
+
+			// 聊天
+			auth.GET("/chat/:orderId", chatHandler.ChatHistory)
+			auth.GET("/chat/ws/:orderId", chatHandler.ChatWS)
 		}
 
 		// 管理员接口
@@ -196,6 +222,7 @@ func main() {
 	r.Static("/css", filepath.Join(frontendDir, "css"))
 	r.Static("/js", filepath.Join(frontendDir, "js"))
 	r.Static("/pages", filepath.Join(frontendDir, "pages"))
+	r.Static("/resources", filepath.Join(frontendDir, "resources"))
 	r.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join(frontendDir, "index.html"))
 	})

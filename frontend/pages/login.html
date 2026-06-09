@@ -21,8 +21,8 @@ body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height
         <p style="color:var(--text-light);font-size:12px;margin-top:4px">统一身份认证 · 安全登录</p>
       </div>
       <div class="error-tip" id="errorTip" style="background:#FEF2F2;color:#EF4444;border:1px solid #FECACA;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none"></div>
-      <div class="l-input-wrap"><span class="l-icon">👤</span><input type="text" class="form-input" id="username" placeholder="请输入用户名" value="admin"></div>
-      <div class="l-input-wrap"><span class="l-icon">🔒</span><input type="password" class="form-input" id="password" placeholder="请输入密码" value="admin123" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="l-input-wrap"><span class="l-icon">👤</span><input type="text" class="form-input" id="username" placeholder="请输入用户名" autocomplete="off"></div>
+      <div class="l-input-wrap"><span class="l-icon">🔒</span><input type="password" class="form-input" id="password" placeholder="请输入密码" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="loginBtn" onclick="doLogin()"><span id="btnText">登 录</span></button>
       <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:13px"><a href="register.html">免费注册</a><a href="javascript:void(0)" style="color:var(--text-light)">忘记密码</a></div>
     </div>

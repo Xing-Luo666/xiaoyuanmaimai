@@ -11,6 +11,18 @@
 .publish-card h2 { font-size:20px; margin-bottom:24px }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px }
 @media (max-width:600px) { .form-row { grid-template-columns:1fr } .publish-card { padding:18px } }
+.upload-area { border:2px dashed #d1d5db; border-radius:12px; padding:32px; text-align:center; background:#fafbfc; cursor:pointer; transition:all .2s; margin-bottom:16px }
+.upload-area:hover, .upload-area.drag-over { border-color:#2563eb; background:#eff6ff }
+.upload-area .upload-icon { font-size:40px; margin-bottom:8px }
+.upload-area p { color:#6b7280; font-size:13px; margin:4px 0 }
+.upload-area .upload-hint { color:#9ca3af; font-size:11px }
+.preview-list { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px }
+.preview-item { position:relative; width:100px; height:100px; border-radius:8px; overflow:hidden; border:1px solid #e5e7eb; flex-shrink:0 }
+.preview-item img { width:100%; height:100%; object-fit:cover }
+.preview-item .remove-btn { position:absolute; top:2px; right:2px; width:22px; height:22px; background:rgba(0,0,0,.6); color:#fff; border:none; border-radius:50%; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1 }
+.preview-item .remove-btn:hover { background:#ef4444 }
+.upload-progress { display:none; margin-bottom:12px; height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden }
+.upload-progress .bar { height:100%; background:#2563eb; transition:width .3s }
 </style>
 </head>
 <body>
@@ -36,8 +48,28 @@
         <div class="form-group"><label class="form-label">售价 (元) *</label><input type="number" class="form-input" id="price" placeholder="0.00" required step="0.01" min="0"></div>
         <div class="form-group"><label class="form-label">原价 (元)</label><input type="number" class="form-input" id="oriPrice" placeholder="选填" step="0.01" min="0"></div>
       </div>
-      <div class="form-group"><label class="form-label">所在校区 *</label><select class="form-select" id="campus" required></select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">校区 *</label><select class="form-select" id="campus" required></select></div>
+        <div class="form-group"><label class="form-label">楼栋</label><select class="form-select" id="building"></select></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">商品规格 <span style="color:#9ca3af;font-weight:400">（可选，设置不同规格和价格）</span></label>
+        <div id="specsContainer"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addSpec()" style="margin-top:6px">+ 添加规格</button>
+      </div>
       <div class="form-group"><label class="form-label">商品描述</label><textarea class="form-input" id="description" placeholder="详细描述商品状况、购买时间、使用频率等..." rows="5"></textarea></div>
+      <div class="form-group">
+        <label class="form-label">商品图片 <span style="color:#9ca3af;font-weight:400">（拖拽或点击上传，支持 jpg/png/gif/webp/heic，≤10MB）</span></label>
+        <div class="preview-list" id="previewList"></div>
+        <div class="upload-progress" id="uploadProgress"><div class="bar" style="width:0%"></div></div>
+        <div class="upload-area" id="uploadArea">
+          <div class="upload-icon">📷</div>
+          <p>点击或拖拽图片到此处上传</p>
+          <p class="upload-hint">支持 .jpg .jpeg .png .gif .webp .bmp .heic，单张不超过 10MB</p>
+          <p class="upload-hint" style="margin-top:8px">如不添加图片，将使用默认商品图</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      </div>
       <button type="submit" class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="submitBtn"><span id="btnText">发布商品</span></button>
     </form>
   </div>
@@ -53,6 +85,108 @@
   CATEGORIES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('category').appendChild(opt); });
   CONDITIONS.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('condition').appendChild(opt); });
   CAMPUSES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('campus').appendChild(opt); });
+  BUILDINGS.forEach(function(b) { var opt = document.createElement('option'); opt.value = b.value; opt.textContent = b.label; document.getElementById('building').appendChild(opt); });
+
+  var specIdCounter = 0;
+  window.addSpec = function() {
+    specIdCounter++;
+    var container = document.getElementById('specsContainer');
+    var div = document.createElement('div');
+    div.className = 'form-row';
+    div.style.marginBottom = '6px';
+    div.id = 'spec-' + specIdCounter;
+    div.innerHTML = '<input type="text" class="form-input" placeholder="规格名（如：红色128G）" style="flex:1">' +
+      '<input type="number" class="form-input" placeholder="价格" step="0.01" min="0" style="width:120px">' +
+      '<input type="number" class="form-input" placeholder="库存" min="1" value="1" style="width:80px">' +
+      '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'spec-' + specIdCounter + '\').remove()">×</button>';
+    container.appendChild(div);
+  };
+
+  function getSpecs() {
+    var specs = [];
+    document.querySelectorAll('#specsContainer .form-row').forEach(function(row) {
+      var inputs = row.querySelectorAll('input');
+      var name = inputs[0].value.trim();
+      var price = parseFloat(inputs[1].value);
+      var stock = parseInt(inputs[2].value) || 1;
+      if (name && price > 0) {
+        specs.push({ id: 's' + (specs.length+1), name: name, price: price, stock: stock });
+      }
+    });
+    return specs;
+  }
+
+  var uploadedImages = [];
+  var uploading = false;
+
+  var uploadArea = document.getElementById('uploadArea');
+  var fileInput = document.getElementById('fileInput');
+  var progressBar = document.getElementById('uploadProgress');
+
+  uploadArea.addEventListener('click', function() { fileInput.click(); });
+
+  uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+  uploadArea.addEventListener('dragleave', function() { uploadArea.classList.remove('drag-over'); });
+  uploadArea.addEventListener('drop', function(e) { e.preventDefault(); uploadArea.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+  fileInput.addEventListener('change', function() { handleFiles(this.files); this.value = ''; });
+
+  function handleFiles(files) {
+    var validExts = ['jpg','jpeg','png','gif','webp','bmp','heic','heif'];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (f.size > 10 * 1024 * 1024) { showToast(f.name + ' 超过10MB限制', 'error'); continue; }
+      var ext = f.name.split('.').pop().toLowerCase();
+      if (validExts.indexOf(ext) === -1) { showToast(f.name + ' 格式不支持', 'error'); continue; }
+      uploadFile(f);
+    }
+  }
+
+  async function uploadFile(file) {
+    if (uploading) { showToast('请等待当前上传完成', 'warning'); return; }
+    uploading = true;
+    progressBar.style.display = 'block';
+    progressBar.querySelector('.bar').style.width = '30%';
+
+    var formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      var token = api.token;
+      var res = await fetch(API_BASE + '/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData
+      });
+      var json = await res.json();
+      progressBar.querySelector('.bar').style.width = '100%';
+      setTimeout(function() { progressBar.style.display = 'none'; progressBar.querySelector('.bar').style.width = '0%'; }, 500);
+
+      if (json.code === 200) {
+        uploadedImages.push(json.data.url);
+        renderPreviews();
+        showToast('图片上传成功');
+      } else {
+        showToast(json.message || '上传失败', 'error');
+      }
+    } catch(e) {
+      progressBar.style.display = 'none';
+      showToast('网络错误，上传失败', 'error');
+    }
+    uploading = false;
+  }
+
+  function renderPreviews() {
+    var container = document.getElementById('previewList');
+    container.innerHTML = uploadedImages.map(function(url, i) {
+      return '<div class="preview-item"><img src="' + url + '" alt="preview"><button class="remove-btn" onclick="removeImage(' + i + ')" type="button">&times;</button></div>';
+    }).join('');
+  }
+
+  window.removeImage = function(i) {
+    uploadedImages.splice(i, 1);
+    renderPreviews();
+  };
 
   document.getElementById('publishForm').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -65,8 +199,11 @@
       category: document.getElementById('category').value,
       price: parseFloat(document.getElementById('price').value),
       oriPrice: parseFloat(document.getElementById('oriPrice').value) || 0,
+      images: uploadedImages,
+      specs: getSpecs(),
       condition: document.getElementById('condition').value,
-      campus: document.getElementById('campus').value
+      campus: document.getElementById('campus').value,
+      building: document.getElementById('building').value
     };
     api.post('/products', data).then(function(res) {
       btn.disabled = false;

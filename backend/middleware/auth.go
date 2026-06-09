@@ -55,18 +55,23 @@ func ParseToken(tokenString string) (*Claims, error) {
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		tokenString := ""
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
+		}
+		// Cookie 作为 fallback
+		if tokenString == "" {
+			tokenString, _ = c.Cookie("sso_token")
+		}
+		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "请先登录"})
 			c.Abort()
 			return
 		}
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "认证格式错误"})
-			c.Abort()
-			return
-		}
-		claims, err := ParseToken(parts[1])
+		claims, err := ParseToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "登录已过期，请重新登录"})
 			c.Abort()
@@ -82,18 +87,23 @@ func AuthRequired() gin.HandlerFunc {
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		tokenString := ""
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
+		}
+		// Cookie 作为 fallback
+		if tokenString == "" {
+			tokenString, _ = c.Cookie("sso_token")
+		}
+		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "请先登录"})
 			c.Abort()
 			return
 		}
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "认证格式错误"})
-			c.Abort()
-			return
-		}
-		claims, err := ParseToken(parts[1])
+		claims, err := ParseToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, models.APIResponse{Code: 401, Message: "登录已过期，请重新登录"})
 			c.Abort()

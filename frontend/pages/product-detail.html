@@ -5,123 +5,185 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>商品详情 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
+<style>
+.spec-option { padding:8px 16px; border:1px solid #d1d5db; border-radius:8px; cursor:pointer; text-align:center; font-size:13px; transition:all .2s; min-width:80px }
+.spec-option:hover { border-color:#2563eb; background:#eff6ff }
+.spec-option.active { border-color:#2563eb; background:#eff6ff; color:#2563eb; font-weight:600 }
+.quantity-row { display:flex; align-items:center; gap:8px; margin-top:12px }
+.qty-btn { width:32px; height:32px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center }
+.qty-btn:hover { background:#f3f4f6 }
+.qty-input { width:50px; text-align:center; border:1px solid #d1d5db; border-radius:6px; padding:4px; font-size:14px }
+.btn-cart { background:#22c55e; color:#fff; padding:12px 24px; border-radius:24px; border:none; font-size:15px; cursor:pointer; margin-right:8px }
+.btn-cart:hover { background:#16a34a }
+.btn-fav { background:none; border:2px solid #ef4444; color:#ef4444; border-radius:50%; width:44px; height:44px; font-size:20px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center }
+.btn-fav.active { background:#ef4444; color:#fff }
+</style>
 </head>
 <body>
 
-<div class="top-nav">
-  <div class="top-nav-inner">
-    <span>校园二手交易平台</span>
-    <div id="topNavRight">
-      <a href="../index.html">首页</a>
-      <a href="products.html">商品广场</a>
-      <a href="orders.html">我的订单</a>
-      <a href="login.html">登录</a>
-    </div>
+<div class="topbar">
+  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div class="logo-text" style="font-size:16px">商品详情</div></div>
+  <div>
+    <a href="products.html">商品广场</a>
+    <a href="orders.html">订单</a>
+    <a href="profile.html">个人中心</a>
+    <a href="login.html" id="navLogin">登录</a>
   </div>
 </div>
 
-<header class="main-header">
-  <div class="header-inner">
-    <div class="logo-area" onclick="location.href='../index.html'"><div class="logo-icon">📚</div><div><div class="logo-text">商品详情</div></div></div>
-    <div class="search-area"><input type="text" placeholder="搜索更多好物..." onkeydown="if(event.key==='Enter')location.href='products.html?keyword='+encodeURIComponent(this.value)"><button class="search-btn" onclick="location.href='products.html?keyword='+encodeURIComponent(document.querySelector('.search-area input').value)">搜索</button></div>
-  </div>
-</header>
-
-<div class="detail-wrap">
-  <div class="breadcrumb"><a href="../index.html">首页</a> / <a href="products.html">商品广场</a> / <span>商品详情</span></div>
-  <div id="detailContent" style="text-align:center;padding:80px;"><div class="empty-icon" style="font-size:48px">⏳</div><p style="margin-top:12px;color:var(--text-light)">加载中...</p></div>
+<div class="publish-wrap" style="margin-top:16px">
+  <div id="detailContent" style="text-align:center;padding:80px;"><p>⏳ 加载中...</p></div>
 </div>
 
 <script src="../js/api.js"></script>
 <script>
 var currentProduct = null;
-var galleryIdx = 0;
+var selectedSpec = null;
+var quantity = 1;
+var isFavorited = false;
 
-(function() {
-  api.verifyAndInit().then(function(ok) { if (ok) updateNav(); });
+(async function() {
+  await api.verifyAndInit();
+  updateNav();
   var id = new URLSearchParams(location.search).get('id');
-  if (!id) { document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">❌</div><p>参数错误</p></div>'; return; }
-  api.get('/products/' + id).then(function(res) {
-    if (res.code !== 200) { document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>商品不存在或已下架</p></div>'; return; }
-    currentProduct = res.data;
-    renderDetail(res.data);
-  }).catch(function() {
-    document.getElementById('detailContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>加载失败</p></div>';
-  });
+  if (!id) { showError('参数错误'); return; }
+
+  var res = await api.get('/products/' + id);
+  if (res.code !== 200) { showError('商品不存在或已下架'); return; }
+  currentProduct = res.data;
+
+  // 记录历史
+  if (api.isLoggedIn()) {
+    api.addHistory({ productId: currentProduct.id, productTitle: currentProduct.title, productImage: (currentProduct.images||[])[0]||'', price: currentProduct.price });
+  }
+
+  // 检查收藏状态
+  if (api.isLoggedIn()) {
+    var favRes = await api.checkFavorites([currentProduct.id]);
+    isFavorited = favRes.data && favRes.data[currentProduct.id];
+  }
+
+  renderDetail();
 })();
 
 function updateNav() {
   var user = api.getUser();
   if (!user) return;
-  document.getElementById('topNavRight').innerHTML =
-    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-    '<a href="orders.html">我的订单</a>' +
-    '<a href="profile.html">个人中心</a>' +
-    '<a href="../index.html" onclick="api.logout()">退出</a>';
+  document.getElementById('navLogin').textContent = user.username;
+  document.getElementById('navLogin').href = 'profile.html';
 }
 
-function renderDetail(p) {
-  var imgs = p.images && p.images.length ? p.images : ['https://picsum.photos/seed/detail' + p.id + '/600/600'];
-  var discount = p.oriPrice > p.price ? Math.round((1 - p.price / p.oriPrice) * 100) : 0;
+function showError(msg) {
+  document.getElementById('detailContent').innerHTML = '<div style="text-align:center;padding:80px"><p style="font-size:48px">⚠️</p><p>'+msg+'</p></div>';
+}
+
+function renderDetail() {
+  var p = currentProduct;
+  var imgs = p.images && p.images.length ? p.images : ['/resources/default-product.gif'];
+  var specs = p.specs || [];
   var user = api.getUser();
   var isOwner = user && user.userId === p.sellerId;
+
+  // 默认价格
+  var displayPrice = p.price;
+  if (selectedSpec) { displayPrice = selectedSpec.price; }
+
+  var specHTML = '';
+  if (specs.length > 0) {
+    specHTML = '<div style="margin:12px 0"><label class="form-label">选择规格</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">';
+    specs.forEach(function(s) {
+      specHTML += '<div class="spec-option'+(selectedSpec && selectedSpec.id===s.id?' active':'')+'" onclick="selectSpec(\''+s.id+'\')" data-sid="'+s.id+'">'+escHtml(s.name)+'<br><span style="font-size:12px;color:#ef4444">¥'+s.price.toFixed(2)+'</span>'+(s.stock>0?'<br><span style="font-size:11px;color:#9ca3af">库存:'+s.stock+'</span>':'<br><span style="font-size:11px;color:#ef4444">无货</span>')+'</div>';
+    });
+    specHTML += '</div></div>';
+  }
+
+  var qtyHTML = '<div class="quantity-row"><label class="form-label" style="margin:0">数量:</label><button class="qty-btn" onclick="changeQty(-1)">-</button><input class="qty-input" id="qtyInput" value="'+quantity+'" onchange="quantity=Math.max(1,parseInt(this.value)||1);this.value=quantity"><button class="qty-btn" onclick="changeQty(1)">+</button></div>';
+
   var actionHTML = '';
   if (!user) {
     actionHTML = '<button class="btn-buy-now" onclick="location.href=\'login.html?redirect=\'+encodeURIComponent(location.href)">登录后购买</button>';
   } else if (isOwner) {
-    actionHTML = '<span style="padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:var(--text-light);flex:1">这是你的商品</span>';
+    if (p.status === 'selling') {
+      actionHTML = '<span style="display:block;padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:#999;margin-bottom:8px">这是你的商品</span>';
+    } else {
+      actionHTML = '<span style="display:block;padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:#999;margin-bottom:8px">状态: '+p.status+'</span>';
+    }
   } else if (p.status === 'selling') {
-    actionHTML = '<button class="btn-buy-now" onclick="buyNow()">立即购买</button>';
+    actionHTML = '<button class="btn-buy-now" onclick="buyNow()">立即购买</button>' +
+      '<button class="btn-cart" onclick="addToCart()">加入购物车</button>' +
+      '<button class="btn-fav'+(isFavorited?' active':'')+'" onclick="toggleFav()" id="favBtn">'+ (isFavorited?'♥':'♡') +'</button>';
   } else {
-    actionHTML = '<span style="padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:var(--text-light);flex:1">' + p.status + '</span>';
+    actionHTML = '<span style="display:block;padding:14px;background:#F5F5F5;border-radius:24px;text-align:center;color:#999">'+p.status+'</span>';
   }
 
   document.getElementById('detailContent').innerHTML =
-    '<div class="detail-main"><div><div class="gallery-main"><img src="' + imgs[galleryIdx] + '" alt="' + escHtml(p.title) + '" id="galleryMainImg">' + (imgs.length > 1 ? '<div class="gallery-nav prev" onclick="galleryPrev()">◂</div><div class="gallery-nav next" onclick="galleryNext()">▸</div>' : '') + '</div>' + (imgs.length > 1 ? '<div class="gallery-thumbs" id="galleryThumbs"></div>' : '') + '</div><div class="detail-info"><div class="detail-title">' + escHtml(p.title) + '</div><div class="detail-price-box"><div class="detail-price-label">价格</div><span class="detail-price-current"><span class="symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="detail-price-ori">¥' + p.oriPrice + '</span>' : '') + '</div><div class="detail-meta-row"><div class="detail-meta-item">分类：<b>' + getCategoryLabel(p.category) + '</b></div><div class="detail-meta-item">校区：<b>' + getCampusLabel(p.campus) + '</b></div><div class="detail-meta-item">成色：<b>' + getConditionLabel(p.condition) + '</b></div><div class="detail-meta-item">浏览：<b>' + p.viewCount + '</b></div></div><div class="detail-desc-box">' + escHtml(p.description || '暂无描述') + '</div><div class="detail-seller-box"><div class="detail-seller-avatar">' + (p.sellerName ? p.sellerName[0] : '?') + '</div><div class="detail-seller-info"><div class="detail-seller-name">' + escHtml(p.sellerName) + '</div><div class="detail-seller-meta">卖家</div></div></div><div class="detail-actions">' + actionHTML + '</div></div></div>';
+    '<div class="publish-card" style="display:flex;gap:24px;flex-wrap:wrap">' +
+    '<div style="flex:1;min-width:280px"><img src="'+(imgs[0]||'')+'" style="width:100%;border-radius:12px" alt="'+escHtml(p.title)+'"></div>' +
+    '<div style="flex:1;min-width:280px">' +
+    '<h2 style="margin-bottom:8px">'+escHtml(p.title)+'</h2>' +
+    '<div style="font-size:28px;color:#ef4444;font-weight:700;margin:8px 0">¥'+displayPrice.toFixed(2)+' '+(p.oriPrice>displayPrice?'<span style="font-size:16px;color:#9ca3af;text-decoration:line-through">¥'+p.oriPrice.toFixed(2)+'</span>':'')+'</div>' +
+    '<div style="display:flex;gap:16px;color:#6b7280;font-size:13px;margin:8px 0"><span>分类: '+getCategoryLabel(p.category)+'</span><span>校区: '+getCampusLabel(p.campus)+'</span>'+(p.building?'<span>'+p.building+'栋</span>':'')+'</div>' +
+    '<div style="color:#6b7280;font-size:13px;margin:8px 0"><span>成色: '+getConditionLabel(p.condition)+'</span><span style="margin-left:16px">浏览: '+p.viewCount+'</span><span style="margin-left:16px">点赞: '+p.likeCount+'</span></div>' +
+    specHTML + qtyHTML +
+    '<div style="margin:16px 0;line-height:1.6;color:#374151">'+escHtml(p.description||'暂无描述')+'</div>' +
+    '<div style="background:#f9fafb;border-radius:8px;padding:12px;margin:12px 0"><div style="font-weight:600">卖家: '+escHtml(p.sellerName)+'</div></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+actionHTML+'</div>' +
+    '</div></div>';
+}
 
-  if (imgs.length > 1) {
-    document.getElementById('galleryThumbs').innerHTML = imgs.map(function(img, i) {
-      return '<div class="gallery-thumb' + (i === 0 ? ' active' : '') + '" onclick="galleryIdx=' + i + ';updateGallery()"><img src="' + img + '"></div>';
-    }).join('');
+function selectSpec(sid) {
+  var spec = (currentProduct.specs||[]).find(function(s){ return s.id===sid; });
+  if (!spec || spec.stock <= 0) { showToast('该规格无库存', 'error'); return; }
+  selectedSpec = spec;
+  quantity = 1;
+  renderDetail();
+}
+
+function changeQty(delta) {
+  quantity = Math.max(1, quantity + delta);
+  var maxStock = selectedSpec ? selectedSpec.stock : 999;
+  quantity = Math.min(quantity, maxStock);
+  document.getElementById('qtyInput').value = quantity;
+}
+
+async function buyNow() {
+  if (currentProduct.specs && currentProduct.specs.length > 0 && !selectedSpec) { showToast('请选择规格', 'error'); return; }
+  var price = selectedSpec ? selectedSpec.price : currentProduct.price;
+  var res = await api.post('/orders', { productId: currentProduct.id, price: price, quantity: quantity, spec: selectedSpec?selectedSpec.name:'' });
+  if (res.code === 200) { showToast('下单成功！'); setTimeout(function(){ location.href='orders.html'; }, 800); }
+  else { showToast(res.message || '购买失败', 'error'); }
+}
+
+async function addToCart() {
+  if (currentProduct.specs && currentProduct.specs.length > 0 && !selectedSpec) { showToast('请选择规格', 'error'); return; }
+  var price = selectedSpec ? selectedSpec.price : currentProduct.price;
+  var res = await api.addToCart({
+    productId: currentProduct.id,
+    productTitle: currentProduct.title,
+    productImage: (currentProduct.images||[])[0]||'',
+    specName: selectedSpec ? selectedSpec.name : '',
+    price: price,
+    quantity: quantity
+  });
+  if (res.code === 200) { showToast('已加入购物车'); }
+  else { showToast(res.message || '添加失败', 'error'); }
+}
+
+async function toggleFav() {
+  if (!api.isLoggedIn()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  var res = await api.toggleFavorite({ productId: currentProduct.id, productTitle: currentProduct.title, productImage: (currentProduct.images||[])[0]||'', price: currentProduct.price });
+  if (res.code === 200) {
+    isFavorited = res.data.favorited;
+    document.getElementById('favBtn').textContent = isFavorited ? '♥' : '♡';
+    document.getElementById('favBtn').classList.toggle('active', isFavorited);
+    showToast(isFavorited ? '已收藏' : '已取消收藏');
   }
 }
 
-function galleryPrev() {
-  var imgs = currentProduct.images;
-  if (!imgs || !imgs.length) return;
-  galleryIdx = (galleryIdx - 1 + imgs.length) % imgs.length;
-  updateGallery();
-}
-function galleryNext() {
-  var imgs = currentProduct.images;
-  if (!imgs || !imgs.length) return;
-  galleryIdx = (galleryIdx + 1) % imgs.length;
-  updateGallery();
-}
-function updateGallery() {
-  var imgs = currentProduct.images;
-  document.getElementById('galleryMainImg').src = imgs[galleryIdx];
-  var thumbs = document.querySelectorAll('.gallery-thumb');
-  thumbs.forEach(function(t, i) { t.classList.toggle('active', i === galleryIdx); });
-}
-
-function buyNow() {
-  var msg = prompt('给卖家留言（选填）：');
-  api.post('/orders', { productId: currentProduct.id, message: msg || '' }).then(function(res) {
-    if (res.code === 200) {
-      alert('下单成功！');
-      location.reload();
-    } else {
-      alert(res.message || '下单失败');
-    }
-  });
-}
-
-function getConditionLabel(v) {
-  return v === 'new' ? '全新' : v === 'like_new' ? '几乎全新' : v === 'good' ? '良好' : v === 'fair' ? '一般' : v === 'old' ? '老旧' : v || '未知';
-}
-
-function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+function getCategoryLabel(v) { var c = CATEGORIES.find(function(x){return x.value===v}); return c?c.label:v; }
+function getCampusLabel(v) { var c = CAMPUSES.find(function(x){return x.value===v}); return c?c.label:v; }
+function getConditionLabel(v) { var c = CONDITIONS.find(function(x){return x.value===v}); return c?c.label:v; }
+function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>

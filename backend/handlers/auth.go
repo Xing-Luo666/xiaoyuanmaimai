@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"regexp"
 	"school-trade/middleware"
 	"school-trade/models"
 	"school-trade/store"
@@ -31,6 +32,44 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "参数错误: " + err.Error()})
+		return
+	}
+
+	// 用户名校验：4-20位字母或数字
+	if len(req.Username) < 4 || len(req.Username) > 20 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "用户名需为4-20位字母或数字"})
+		return
+	}
+	if !regexp.MustCompile(`^[a-zA-Z0-9]+$`).MatchString(req.Username) {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "用户名只能包含字母和数字"})
+		return
+	}
+
+	// 密码校验：至少6位
+	if len(req.Password) < 6 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "密码至少需要6位"})
+		return
+	}
+
+	// 手机号校验（如果填写了）
+	if req.Phone != "" {
+		if !regexp.MustCompile(`^1[3-9]\d{9}$`).MatchString(req.Phone) {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "手机号格式不正确"})
+			return
+		}
+	}
+
+	// 邮箱校验（如果填写了）
+	if req.Email != "" {
+		if !regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString(req.Email) {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "邮箱格式不正确"})
+			return
+		}
+	}
+
+	// 昵称校验
+	if len(req.Nickname) < 1 || len(req.Nickname) > 30 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "昵称长度为1-30个字符"})
 		return
 	}
 
@@ -77,6 +116,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 设置 HttpOnly Cookie
+	c.SetCookie("sso_token", token, int(time.Until(time.Unix(expiresAt, 0)).Seconds()), "/", "", false, true)
+
 	c.JSON(http.StatusOK, models.APIResponse{
 		Code:    200,
 		Message: "注册成功",
@@ -115,6 +157,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "生成令牌失败"})
 		return
 	}
+
+	// 设置 HttpOnly Cookie
+	c.SetCookie("sso_token", token, int(time.Until(time.Unix(expiresAt, 0)).Seconds()), "/", "", false, true)
 
 	c.JSON(http.StatusOK, models.APIResponse{
 		Code:    200,

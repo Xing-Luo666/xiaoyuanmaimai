@@ -288,8 +288,18 @@ function editRow(id) {
 function renderForm(data = {}) {
   const form = document.getElementById('modalForm');
   let html = '';
+  const isNew = !data || Object.keys(data).length === 0;
   for (const col of currentColumns) {
-    if (col.extra === 'auto_increment' || col.name === 'id' || col.name === 'ID') continue;
+    // 编辑时跳过 id，新增时可填
+    if (col.extra === 'auto_increment') continue;
+    if (col.name === 'id' || col.name === 'ID') {
+      if (!isNew) continue;
+      html += `<div class="form-group">
+        <label>${col.name} <span class="hint">${col.type || ''} — 留空自动生成</span></label>
+        <input type="text" name="${col.name}" value="" placeholder="留空自动生成">
+      </div>`;
+      continue;
+    }
     const val = data[col.name] !== undefined ? data[col.name] : '';
     const isRequired = !col.nullable && col.default === '' && col.extra !== 'auto_increment';
     let input;
@@ -338,6 +348,12 @@ async function submitForm() {
       if (val !== '') val = (col.type || '').toLowerCase().includes('decimal') ? parseFloat(val) : parseInt(val);
     }
     data[input.name] = val;
+  }
+
+  // 删除空的 id 字段，让后端自动生成
+  if (!data.id && !data.ID) {
+    delete data.id;
+    delete data.ID;
   }
 
   let res;

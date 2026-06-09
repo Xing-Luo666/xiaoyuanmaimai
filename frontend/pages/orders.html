@@ -11,8 +11,7 @@
 .orders-tab { flex:1; text-align:center; padding:12px; font-size:14px; cursor:pointer; transition:all .2s; border-bottom:2px solid transparent; font-weight:500 }
 .orders-tab:hover { color:var(--primary); background:var(--primary-light) }
 .orders-tab.active { color:var(--primary); border-bottom-color:var(--primary); background:var(--primary-light) }
-.order-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); padding:18px; margin-bottom:12px; transition:all .2s }
-.order-card:hover { box-shadow:var(--shadow-hover) }
+.order-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); padding:18px; margin-bottom:12px }
 .order-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border) }
 .order-card-body { display:flex; gap:14px; align-items:center }
 .order-card-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border) }
@@ -20,80 +19,90 @@
 </head>
 <body>
 
-<div class="top-nav">
-  <div class="top-nav-inner">
-    <span>校园二手交易平台</span>
-    <div id="topNavRight">
-      <a href="../index.html">首页</a>
-      <a href="products.html">商品广场</a>
-      <a href="publish.html">卖闲置</a>
-      <a href="login.html">登录</a>
-    </div>
-  </div>
+<div class="topbar">
+  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📋</div><div class="logo-text" style="font-size:16px">我的订单</div></div>
+  <div><a href="cart.html">🛒 购物车</a><a href="../index.html">首页</a></div>
 </div>
-
-<header class="main-header">
-  <div class="header-inner">
-    <div class="logo-area" onclick="location.href='../index.html'"><div class="logo-icon">📚</div><div><div class="logo-text">我的订单</div></div></div>
-  </div>
-</header>
 
 <div class="orders-wrap">
   <div class="orders-tabs">
-    <div class="orders-tab active" onclick="switchOrderTab('buyer',this)">🛒 我购买的</div>
-    <div class="orders-tab" onclick="switchOrderTab('seller',this)">💰 我卖出的</div>
+    <div class="orders-tab active" onclick="switchOrderTab('buyer',this)">我购买的</div>
+    <div class="orders-tab" onclick="switchOrderTab('seller',this)">我卖出的</div>
   </div>
   <div id="ordersContent"></div>
 </div>
 
 <script src="../js/api.js"></script>
 <script>
-(function() {
-  api.verifyAndInit().then(function(ok) {
-    if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
-    updateNav();
-    switchOrderTab('buyer', document.querySelector('.orders-tab'));
-  });
+var currentRole = 'buyer';
+
+(async function() {
+  if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  loadOrders('buyer');
 })();
 
-function updateNav() {
-  var user = api.getUser();
-  if (!user) return;
-  document.getElementById('topNavRight').innerHTML =
-    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-    '<a href="profile.html">个人中心</a>' +
-    '<a href="publish.html">卖闲置</a>' +
-    '<a href="../index.html" onclick="api.logout()">退出</a>';
-}
-
 function switchOrderTab(role, el) {
+  currentRole = role;
   document.querySelectorAll('.orders-tab').forEach(function(t) { t.classList.remove('active'); });
   el.classList.add('active');
   loadOrders(role);
 }
 
-function loadOrders(role) {
-  api.get('/orders', { role: role }).then(function(res) {
-    var ct = document.getElementById('ordersContent');
-    if (res.code !== 200 || !res.data.list || !res.data.list.length) {
-      ct.innerHTML = '<div class="empty-state"><div class="empty-icon">' + (role === 'buyer' ? '🛒' : '💰') + '</div><p>暂无' + (role === 'buyer' ? '购买' : '卖出') + '记录</p><br><a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a></div>';
-      return;
+async function loadOrders(role) {
+  var res = await api.get('/orders', { role: role });
+  var ct = document.getElementById('ordersContent');
+  if (res.code !== 200 || !res.data.list || !res.data.list.length) {
+    ct.innerHTML = '<div style="text-align:center;padding:80px"><p style="font-size:48px">'+(role==='buyer'?'🛒':'💰')+'</p><p>暂无'+(role==='buyer'?'购买':'卖出')+'记录</p><a href="products.html" class="mall-btn mall-btn-primary" style="margin-top:16px">去逛逛</a></div>';
+    return;
+  }
+  ct.innerHTML = res.data.list.map(function(o) {
+    var statusMap = {pending:'待处理',accepted:'已接受',shipped:'已发货',completed:'已完成',rejected:'已拒绝',cancelled:'已取消'};
+    var statusLabel = statusMap[o.status] || o.status;
+    var bgColor = o.status==='completed'?'#DCFCE7':o.status==='pending'?'#FEF3C7':o.status==='shipped'||o.status==='accepted'?'#DBEAFE':o.status==='rejected'||o.status==='cancelled'?'#F1F5F9':'#F1F5F9';
+    var textColor = o.status==='completed'?'#16A34A':o.status==='rejected'?'#EF4444':o.status==='cancelled'?'#6B7280':'#D97706';
+
+    var footerHTML = '';
+    // 卖家: 接受/拒绝
+    if (o.status === 'pending' && role === 'seller') {
+      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'accepted\')">接受</button><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'rejected\')">拒绝</button></div>';
     }
-    ct.innerHTML = res.data.list.map(function(o) {
-      var statusLabel = o.status === 'pending' ? '待处理' : o.status === 'accepted' ? '已接受' : o.status === 'completed' ? '已完成' : o.status === 'rejected' ? '已拒绝' : o.status === 'cancelled' ? '已取消' : o.status;
-      return '<div class="order-card"><div class="order-card-header"><div><b>' + escHtml(o.productTitle) + '</b></div><span class="order-status-badge" style="background:' + (o.status === 'completed' || o.status === 'accepted' ? '#DCFCE7' : o.status === 'pending' ? '#FEF3C7' : '#F1F5F9') + ';color:' + (o.status === 'completed' ? '#16A34A' : o.status === 'rejected' ? '#EF4444' : '#D97706') + '">' + statusLabel + '</span></div><div class="order-card-body"><div class="order-item-img" style="font-size:20px;">' + (role === 'buyer' ? '🛒' : '💰') + '</div><div class="order-item-info"><div>' + (role === 'buyer' ? '卖家' : '买家') + ': <b>' + escHtml(role === 'buyer' ? o.sellerName : o.buyerName) + '</b></div><div class="order-item-meta">价格：<span style="color:var(--price);font-weight:700">¥' + o.price + '</span> · ' + formatDate(o.createdAt) + '</div></div></div>' + (o.status === 'pending' && role === 'seller' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'accepted\')">接受</button><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'rejected\')">拒绝</button></div>' : '') + (o.status === 'accepted' && role === 'buyer' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'completed\')">确认收货</button></div>' : '') + (o.status === 'pending' && role === 'buyer' ? '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'cancelled\')">取消订单</button></div>' : '') + '</div>';
-    }).join('');
-  }).catch(function() {});
+    // 卖家: 已发货
+    if (o.status === 'accepted' && role === 'seller') {
+      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'shipped\')">标记已发货</button></div>';
+    }
+    // 买家: 确认收货
+    if (o.status === 'shipped' && role === 'buyer') {
+      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'completed\')">确认收货</button></div>';
+    }
+    // 买家: 取消订单 (pending 或 accepted)
+    if ((o.status === 'pending' || o.status === 'accepted') && role === 'buyer') {
+      footerHTML += '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消订单</button></div>';
+    }
+    // 卖家: 取消售卖
+    if (o.status === 'pending' && role === 'seller') {
+      footerHTML += '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消售卖</button></div>';
+    }
+    // 聊天按钮
+    if (o.status !== 'cancelled' && o.status !== 'rejected') {
+      footerHTML += '<div class="order-card-footer"><a href="chat.html?orderId='+o.id+'" class="mall-btn mall-btn-outline mall-btn-sm">💬 聊天</a></div>';
+    }
+
+    return '<div class="order-card">' +
+      '<div class="order-card-header"><div><b>'+escHtml(o.productTitle)+'</b>'+(o.specName?'<span style="color:#6b7280;font-size:12px;margin-left:8px">规格: '+escHtml(o.specName)+'</span>':'')+(o.quantity>1?'<span style="color:#6b7280;font-size:12px;margin-left:8px">x'+o.quantity+'</span>':'')+'</div>' +
+      '<span style="background:'+bgColor+';color:'+textColor+';padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600">'+statusLabel+'</span></div>' +
+      '<div class="order-card-body"><div style="font-size:24px">'+(role==='buyer'?'🛒':'💰')+'</div><div style="flex:1"><div>'+(role==='buyer'?'卖家':'买家')+': <b>'+escHtml(role==='buyer'?o.sellerName:o.buyerName)+'</b></div>' +
+      '<div style="color:#6b7280;font-size:13px">价格: <span style="color:#ef4444;font-weight:700">¥'+Number(o.price).toFixed(2)+'</span> · '+formatDate(o.createdAt)+'</div></div></div>' +
+      footerHTML + '</div>';
+  }).join('');
 }
 
-function handleOrder(orderId, status) {
-  api.put('/orders/' + orderId + '/status', { status: status }).then(function(res) {
-    if (res.code === 200) { alert('操作成功！'); location.reload(); }
-    else { alert(res.message || '操作失败'); }
-  });
+async function handleOrder(orderId, status) {
+  var res = await api.put('/orders/' + orderId + '/status', { status: status });
+  if (res.code === 200) { alert('操作成功！'); loadOrders(currentRole); }
+  else { alert(res.message || '操作失败'); }
 }
 
-function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 </script>
 </body>
 </html>

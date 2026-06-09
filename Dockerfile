@@ -16,6 +16,7 @@ ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY --from=builder /app/school-trade .
 COPY frontend/ /frontend
+RUN mkdir -p /app/../frontend/resources
 
 EXPOSE 28080
 

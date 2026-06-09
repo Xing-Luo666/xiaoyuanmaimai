@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聊天 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+.chat-wrap { max-width:700px; margin:0 auto; height:100vh; display:flex; flex-direction:column }
+.chat-header { padding:12px 16px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:12px; flex-shrink:0 }
+.chat-msgs { flex:1; overflow-y:auto; padding:16px; background:#f9fafb; display:flex; flex-direction:column; gap:8px }
+.chat-msg { max-width:75%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; word-break:break-word; position:relative }
+.chat-msg.mine { align-self:flex-end; background:#2563eb; color:#fff; border-bottom-right-radius:4px }
+.chat-msg.other { align-self:flex-start; background:#fff; border:1px solid #e5e7eb; border-bottom-left-radius:4px }
+.chat-msg .sender { font-size:11px; color:#6b7280; margin-bottom:4px }
+.chat-msg.mine .sender { color:#93c5fd }
+.chat-msg img { max-width:200px; border-radius:8px; cursor:pointer }
+.chat-msg .time { font-size:11px; opacity:0.7; margin-top:4px }
+.chat-msg .actions { display:none; position:absolute; top:-8px }
+.chat-msg.mine .actions { right:8px }
+.chat-msg.other .actions { left:8px }
+.chat-msg:hover .actions { display:flex; gap:4px }
+.chat-msg .actions button { font-size:10px; padding:2px 6px; border:none; border-radius:4px; cursor:pointer; background:rgba(0,0,0,.5); color:#fff }
+.chat-input { padding:12px 16px; background:#fff; border-top:1px solid #e5e7eb; display:flex; gap:8px; flex-shrink:0 }
+.chat-input input { flex:1; padding:10px 14px; border:1px solid #e5e7eb; border-radius:24px; font-size:14px; outline:none }
+.chat-input button { padding:8px 20px; border:none; border-radius:24px; background:#2563eb; color:#fff; cursor:pointer; font-size:14px }
+.chat-input .img-btn { width:40px; padding:8px; border-radius:50%; background:#f3f4f6; color:#374151; font-size:18px; display:flex; align-items:center; justify-content:center }
+.modal-img { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.9); z-index:999; align-items:center; justify-content:center }
+.modal-img.show { display:flex }
+.modal-img img { max-width:90vw; max-height:90vh }
+</style>
+</head>
+<body>
+<div class="chat-wrap">
+  <div class="chat-header">
+    <a href="orders.html" style="font-size:18px;text-decoration:none">←</a>
+    <div><b id="chatTitle">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
+  </div>
+  <div class="chat-msgs" id="chatMsgs"></div>
+  <div class="chat-input">
+    <span class="img-btn" onclick="document.getElementById('imgInput').click()" title="发送图片">🖼</span>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="sendImage(this.files[0])">
+    <input type="text" id="msgInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendText()">
+    <button onclick="sendText()">发送</button>
+  </div>
+</div>
+<div class="modal-img" id="imgModal" onclick="this.classList.remove('show')"><img id="imgModalSrc"></div>
+
+<script src="../js/api.js"></script>
+<script>
+var orderId, userId, ws;
+var messages = [];
+
+(async function() {
+  if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  var user = api.getUser();
+  userId = user.userId;
+
+  orderId = new URLSearchParams(location.search).get('orderId');
+  if (!orderId) { alert('缺少订单ID'); return; }
+
+  // 加载历史
+  var res = await api.getChatHistory(orderId);
+  if (res.code === 200) {
+    messages = res.data || [];
+    renderMessages();
+  }
+
+  // 连接 WebSocket
+  var token = api.token;
+  var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var wsURL = protocol + '//' + location.host + '/api/chat/ws/' + orderId + '?token=' + encodeURIComponent(token);
+  ws = new WebSocket(wsURL);
+  ws.onmessage = function(e) {
+    var msg = JSON.parse(e.data);
+    if (msg.type === 'deleted') {
+      messages = messages.filter(function(m){ return m.id !== msg.messageId; });
+    } else if (msg.recalled) {
+      var m = messages.find(function(x){ return x.id === msg.id; });
+      if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
+    } else {
+      messages.push(msg);
+    }
+    renderMessages();
+  };
+  ws.onclose = function() { console.log('WebSocket closed'); };
+  ws.onerror = function(e) { console.log('WebSocket error', e); };
+})();
+
+function renderMessages() {
+  var container = document.getElementById('chatMsgs');
+  container.innerHTML = messages.map(function(m) {
+    var isMine = m.senderId === userId;
+    var content = m.type === 'image' ? '<img src="'+m.content+'" ondblclick="showImage(\''+m.content+'\')" alt="图片">' : escHtml(m.content||'');
+    var actions = '';
+    if (isMine && !m.recalled) {
+      actions = '<div class="actions"><button onclick="recallMsg(\''+m.id+'\')">撤回</button><button onclick="deleteMsg(\''+m.id+'\')">删除</button></div>';
+    }
+    return '<div class="chat-msg '+(isMine?'mine':'other')+'">' +
+      '<div class="sender">'+(isMine?'我':escHtml(m.senderName||''))+'</div>' +
+      content +
+      '<div class="time">'+formatDate(m.createdAt)+'</div>' +
+      actions + '</div>';
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendText() {
+  var input = document.getElementById('msgInput');
+  var text = input.value.trim();
+  if (!text || !ws) return;
+  ws.send(JSON.stringify({ type: 'text', content: text }));
+  input.value = '';
+}
+
+function sendImage(file) {
+  if (!file || !ws) return;
+  if (file.size > 10*1024*1024) { showToast('图片不能超过10MB', 'error'); return; }
+  var reader = new FileReader();
+  reader.onload = function() {
+    ws.send(JSON.stringify({ type: 'image', content: reader.result }));
+  };
+  reader.readAsDataURL(file);
+}
+
+function recallMsg(msgId) {
+  if (!ws) return;
+  ws.send(JSON.stringify({ type: 'recall', messageId: msgId }));
+}
+
+function deleteMsg(msgId) {
+  if (!ws) return;
+  ws.send(JSON.stringify({ type: 'delete', messageId: msgId }));
+}
+
+function showImage(src) {
+  document.getElementById('imgModalSrc').src = src;
+  document.getElementById('imgModal').classList.add('show');
+}
+
+function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+</script>
+</body>
+</html>
