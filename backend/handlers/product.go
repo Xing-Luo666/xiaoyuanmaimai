@@ -158,7 +158,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 
 	db := h.Store.GetDB()
 	_, err := db.Exec(
-		"INSERT INTO products (id, title, description, category, price, ori_price, images, specs, cond, campus, building, seller_id, seller_name, status, view_count, like_count, fav_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO products (id, title, description, category, price, ori_price, images, specs, cond, campus, building, seller_id, seller_name, status, view_count, like_count, fav_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		product.ID, product.Title, product.Description, product.Category, product.Price, product.OriPrice, string(imagesJSON), string(specsJSON),
 		product.Condition, product.Campus, product.Building, product.SellerID, product.SellerName, product.Status, product.ViewCount, product.LikeCount, product.FavCount, product.CreatedAt, product.UpdatedAt,
 	)
