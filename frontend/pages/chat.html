@@ -6,15 +6,17 @@
 <title>聊天 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
 <style>
-.chat-wrap { max-width:700px; margin:0 auto; height:100vh; display:flex; flex-direction:column }
-.chat-header { padding:12px 16px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:12px; flex-shrink:0 }
+.chat-wrap { max-width:700px; margin:0 auto; height:calc(100vh - 90px); display:flex; flex-direction:column }
+.chat-inner-header { padding:12px 16px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:12px; flex-shrink:0 }
+.chat-inner-header .back-btn { font-size:20px; color:#374151; text-decoration:none; cursor:pointer; padding:4px; line-height:1 }
+.chat-inner-header .back-btn:hover { color:#2563eb }
 .chat-msgs { flex:1; overflow-y:auto; padding:16px; background:#f9fafb; display:flex; flex-direction:column; gap:8px }
+.chat-msgs .loading-more { text-align:center; padding:12px; color:#9ca3af; font-size:12px; display:none }
 .chat-msg { max-width:75%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; word-break:break-word; position:relative }
 .chat-msg.mine { align-self:flex-end; background:#2563eb; color:#fff; border-bottom-right-radius:4px }
 .chat-msg.other { align-self:flex-start; background:#fff; border:1px solid #e5e7eb; border-bottom-left-radius:4px }
 .chat-msg .sender { font-size:11px; color:#6b7280; margin-bottom:4px }
 .chat-msg.mine .sender { color:#93c5fd }
-.chat-msg img { max-width:200px; border-radius:8px; cursor:pointer }
 .chat-msg .time { font-size:11px; opacity:0.7; margin-top:4px }
 .chat-msg .actions { display:none; position:absolute; top:-8px }
 .chat-msg.mine .actions { right:8px }
@@ -25,9 +27,6 @@
 .chat-input input { flex:1; padding:10px 14px; border:1px solid #e5e7eb; border-radius:24px; font-size:14px; outline:none }
 .chat-input button { padding:8px 20px; border:none; border-radius:24px; background:#2563eb; color:#fff; cursor:pointer; font-size:14px }
 .chat-input .img-btn { width:40px; padding:8px; border-radius:50%; background:#f3f4f6; color:#374151; font-size:18px; display:flex; align-items:center; justify-content:center }
-.modal-img { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.9); z-index:999; align-items:center; justify-content:center }
-.modal-img.show { display:flex }
-.modal-img img { max-width:90vw; max-height:90vh }
 .drag-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(37,99,235,.15); z-index:998; align-items:center; justify-content:center; pointer-events:none }
 .drag-overlay.show { display:flex }
 .drag-overlay-inner { background:#fff; border:3px dashed #2563eb; border-radius:16px; padding:40px 60px; text-align:center; box-shadow:0 8px 32px rgba(37,99,235,.25) }
@@ -36,14 +35,18 @@
 </style>
 </head>
 <body>
-<div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a></div></header>
+<div class="nav-sticky-wrap">
+  <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
+  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a></div></header>
+</div>
 <div class="chat-wrap">
-  <div class="chat-header">
-    <a href="orders.html" style="font-size:18px;text-decoration:none">←</a>
+  <div class="chat-inner-header">
+    <a href="chat-list.html" class="back-btn" title="返回消息列表">←</a>
     <div><b id="chatTitle">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
   </div>
-  <div class="chat-msgs" id="chatMsgs"></div>
+  <div class="chat-msgs" id="chatMsgs">
+    <div class="loading-more" id="loadingMore">加载更多消息...</div>
+  </div>
   <div class="chat-input">
     <span class="img-btn" onclick="document.getElementById('imgInput').click()" title="发送图片">🖼</span>
     <input type="file" id="imgInput" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files);this.value=''">
@@ -51,50 +54,112 @@
     <button onclick="sendText()">发送</button>
   </div>
 </div>
-<div class="modal-img" id="imgModal" onclick="this.classList.remove('show')"><img id="imgModalSrc"></div>
+
+<!-- 图片查看器 -->
+<div class="img-viewer-overlay" id="imgViewer">
+  <div class="img-viewer-toolbar">
+    <button onclick="viewOriginal()">查看原图</button>
+    <button onclick="saveImage()">另存为</button>
+    <button onclick="closeViewer()">✕ 关闭</button>
+  </div>
+  <div class="img-viewer-container" id="imgViewerContainer">
+    <img id="imgViewerImg" src="" alt="">
+  </div>
+  <div class="img-viewer-zoom">
+    <button onclick="zoomImage(-25)" title="缩小">−</button>
+    <span class="zoom-val" id="zoomVal">100%</span>
+    <button onclick="zoomImage(25)" title="放大">+</button>
+    <button onclick="zoomImage(-999)" title="重置">↺</button>
+  </div>
+</div>
+
 <div class="drag-overlay" id="dragOverlay"><div class="drag-overlay-inner"><div class="icon">📷</div><div class="text">释放以发送图片</div><div style="color:#6b7280;font-size:13px;margin-top:6px">支持 jpg/png/gif/webp，单张 ≤10MB</div></div></div>
 
 <script src="../js/api.js"></script>
 <script>
-var orderId, userId, ws, peerKey, peerName;
-var messages = [];
+var userId, ws, peerKey, peerName;
+var messages = [];      // 当前显示的消息列表
+var hasMore = false;    // 是否还有更多历史消息
+var isLoadingMore = false;
+var viewerZoom = 100;   // 图片查看器缩放百分比
+var viewerSrc = '';     // 当前查看的图片URL
 
-(async function() {
-  if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
-  var user = api.getUser();
-  userId = user.userId;
-  updateNav();
+(function() {
+  api.verifyAndInit().then(function(ok) {
+    if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
+    var user = api.getUser();
+    userId = user.userId;
+    updateNav();
 
-  var params = new URLSearchParams(location.search);
-  orderId = params.get('orderId');
-  peerKey = params.get('peer_key');
-  peerName = params.get('peer_name') || '聊天';
+    var params = new URLSearchParams(location.search);
+    var orderId = params.get('orderId');
+    peerKey = params.get('peer_key');
+    peerName = params.get('peer_name') || '聊天';
 
-  if (!orderId && !peerKey) { alert('缺少参数'); return; }
+    if (!orderId && !peerKey) { alert('缺少参数'); return; }
 
-  // 加载历史
-  var res;
-  if (peerKey) {
-    res = await api.getChatHistoryPeer(peerKey);
+    document.getElementById('chatTitle').textContent = peerName;
+    document.getElementById('orderInfo').textContent = peerKey ? '' : '订单号: ' + orderId;
+
+    loadHistory().then(function() {
+      connectWS();
+    });
+  });
+})();
+
+// 加载聊天历史（分页）
+async function loadHistory(before) {
+  if (!peerKey) return;
+  var url = '/chat/history-peer?peer_key=' + encodeURIComponent(peerKey);
+  if (before) url += '&before=' + encodeURIComponent(before);
+  var res = await api.get(url);
+  if (res.code !== 200) return;
+
+  var data = res.data;
+  var newMsgs = (data.messages || data || []);
+  hasMore = data.hasMore || false;
+
+  if (newMsgs.length === 0) return;
+
+  // 后端返回的是倒序（最新在前），需要反转并检查去重
+  newMsgs = newMsgs.reverse();
+  // 如果已有消息，将新消息插入到前面；否则直接赋值
+  if (messages.length > 0) {
+    // 去重并插入前面
+    var existingIds = {};
+    messages.forEach(function(m) { existingIds[m.id] = true; });
+    var uniqueNew = newMsgs.filter(function(m) { return !existingIds[m.id]; });
+    messages = uniqueNew.concat(messages);
   } else {
-    res = await api.getChatHistory(orderId);
+    messages = newMsgs;
   }
-  if (res.code === 200) {
-    messages = res.data || [];
-    renderMessages();
+  renderMessages();
+}
+
+// 滚动到顶部时加载更多
+var msgsContainer = document.getElementById('chatMsgs');
+msgsContainer.addEventListener('scroll', function() {
+  if (msgsContainer.scrollTop <= 30 && hasMore && !isLoadingMore) {
+    isLoadingMore = true;
+    document.getElementById('loadingMore').style.display = 'block';
+    // 获取最早消息的时间作为 before 参数
+    var oldest = messages[0];
+    var before = oldest ? oldest.createdAt : null;
+    loadHistory(before).then(function() {
+      isLoadingMore = false;
+      document.getElementById('loadingMore').style.display = 'none';
+    });
   }
+});
 
-  // 设置标题
-  document.getElementById('chatTitle').textContent = peerKey ? peerName : '订单聊天';
-  document.getElementById('orderInfo').textContent = peerKey ? '' : '订单号: ' + orderId;
-
-  // 连接 WebSocket
+function connectWS() {
   var token = api.token;
   var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   var wsURL;
   if (peerKey) {
     wsURL = protocol + '//' + location.host + '/api/chat/ws/peer?peer_key=' + encodeURIComponent(peerKey) + '&token=' + encodeURIComponent(token);
   } else {
+    var orderId = new URLSearchParams(location.search).get('orderId');
     wsURL = protocol + '//' + location.host + '/api/chat/ws/' + orderId + '?token=' + encodeURIComponent(token);
   }
   ws = new WebSocket(wsURL);
@@ -103,12 +168,9 @@ var messages = [];
     var msg = JSON.parse(e.data);
     if (msg.type === 'deleted') {
       messages = messages.filter(function(m){ return m.id !== msg.messageId; });
-    } else if (msg.type === 'recall') {
-      var m = messages.find(function(x){ return x.id === msg.messageId; });
-      if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
-    } else if (msg.recalled) {
-      var m = messages.find(function(x){ return x.id === msg.id; });
-      if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
+    } else if (msg.type === 'recall' || msg.recalled) {
+      var m = messages.find(function(x){ return x.id === (msg.messageId || msg.id); });
+      if (m) { m.content = '[消息已撤回]'; m.recalled = true; m.type = 'text'; m.msgType = 'text'; }
     } else {
       var existing = messages.find(function(x){ return x.id === msg.id; });
       if (!existing) { messages.push(msg); }
@@ -118,27 +180,23 @@ var messages = [];
   ws.onclose = function() { console.log('WebSocket closed'); };
   ws.onerror = function(e) { console.log('WebSocket error', e); };
 
-  // ===== 拖拽上传 =====
+  // 拖拽上传
   var dragOverlay = document.getElementById('dragOverlay');
   var dragCounter = 0;
   document.addEventListener('dragenter', function(e) {
-    e.preventDefault();
-    dragCounter++;
-    if (dragCounter === 1) { dragOverlay.classList.add('show'); }
+    e.preventDefault(); dragCounter++;
+    if (dragCounter === 1) dragOverlay.classList.add('show');
   });
   document.addEventListener('dragleave', function(e) {
-    e.preventDefault();
-    dragCounter--;
+    e.preventDefault(); dragCounter--;
     if (dragCounter <= 0) { dragCounter = 0; dragOverlay.classList.remove('show'); }
   });
   document.addEventListener('dragover', function(e) { e.preventDefault(); });
   document.addEventListener('drop', function(e) {
-    e.preventDefault();
-    dragCounter = 0;
-    dragOverlay.classList.remove('show');
+    e.preventDefault(); dragCounter = 0; dragOverlay.classList.remove('show');
     handleFiles(e.dataTransfer.files);
   });
-})();
+}
 
 function handleFiles(files) {
   if (!files || !files.length) return;
@@ -154,28 +212,91 @@ function handleFiles(files) {
 
 function renderMessages() {
   var container = document.getElementById('chatMsgs');
-  container.innerHTML = messages.map(function(m) {
-    var isMine = m.senderId === userId;
-    var contentType = m.msgType || m.type;
-    var content;
-    if (contentType === 'image') {
-      content = '<img src="'+escAttr(m.content)+'" data-full="'+escAttr(m.content)+'" ondblclick="showImage(this)" alt="图片">';
-    } else {
-      content = escHtml(m.content||'');
-    }
-    var actions = '';
-    if (isMine && !m.recalled) {
-      actions = '<div class="actions"><button onclick="recallMsg(\''+m.id+'\')">撤回</button><button onclick="deleteMsg(\''+m.id+'\')">删除</button></div>';
-    }
-    return '<div class="chat-msg '+(isMine?'mine':'other')+'">' +
-      '<div class="sender">'+(isMine?'我':escHtml(m.senderName||''))+'</div>' +
-      content +
-      '<div class="time">'+formatDate(m.createdAt)+'</div>' +
-      actions + '</div>';
-  }).join('');
-  container.scrollTop = container.scrollHeight;
+  var wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+
+  container.innerHTML = '<div class="loading-more" id="loadingMore"' + (hasMore ? '' : ' style="display:none"') + '>加载更多消息...</div>' +
+    messages.map(function(m) {
+      var isMine = m.senderId === userId;
+      var contentType = m.msgType || m.type;
+      var content;
+      if (contentType === 'image') {
+        content = '<img class="chat-img-thumb" src="'+escAttr(m.content)+'" data-full="'+escAttr(m.content)+'" ondblclick="openViewer(this)" alt="图片" title="双击查看大图">';
+      } else {
+        content = escHtml(m.content||'');
+      }
+      var actions = '';
+      if (isMine && !m.recalled) {
+        actions = '<div class="actions"><button onclick="recallMsg(\''+m.id+'\')">撤回</button><button onclick="deleteMsg(\''+m.id+'\')">删除</button></div>';
+      }
+      return '<div class="chat-msg '+(isMine?'mine':'other')+'">' +
+        '<div class="sender">'+(isMine?'我':escHtml(m.senderName||''))+'</div>' +
+        content +
+        '<div class="time">'+formatDate(m.createdAt)+'</div>' +
+        actions + '</div>';
+    }).join('');
+
+  if (wasAtBottom) {
+    container.scrollTop = container.scrollHeight;
+  }
 }
 
+// ===== 图片查看器 =====
+function openViewer(el) {
+  viewerSrc = el.getAttribute('data-full') || el.src;
+  viewerZoom = 100;
+  var img = document.getElementById('imgViewerImg');
+  img.src = viewerSrc;
+  img.style.transform = 'scale(1)';
+  document.getElementById('zoomVal').textContent = '100%';
+  document.getElementById('imgViewer').classList.add('show');
+}
+
+function closeViewer() {
+  document.getElementById('imgViewer').classList.remove('show');
+  viewerSrc = '';
+}
+
+function zoomImage(delta) {
+  if (delta === -999) { viewerZoom = 100; } // 重置
+  else { viewerZoom += delta; }
+  viewerZoom = Math.max(25, Math.min(400, viewerZoom));
+  var scale = viewerZoom / 100;
+  document.getElementById('imgViewerImg').style.transform = 'scale(' + scale + ')';
+  document.getElementById('zoomVal').textContent = viewerZoom + '%';
+}
+
+function viewOriginal() {
+  if (viewerSrc) window.open(viewerSrc, '_blank');
+}
+
+function saveImage() {
+  if (viewerSrc) {
+    var a = document.createElement('a');
+    a.href = viewerSrc;
+    a.download = viewerSrc.split('/').pop().split('?')[0] || 'image';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+// 鼠标滚轮缩放
+document.getElementById('imgViewerContainer').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  zoomImage(e.deltaY < 0 ? 10 : -10);
+});
+
+// 点击背景关闭查看器
+document.getElementById('imgViewer').addEventListener('click', function(e) {
+  if (e.target === this) closeViewer();
+});
+
+// ESC 关闭
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeViewer();
+});
+
+// ===== 发送 / 操作 =====
 function sendText() {
   var input = document.getElementById('msgInput');
   var text = input.value.trim();
@@ -194,21 +315,8 @@ function sendImage(file) {
   reader.readAsDataURL(file);
 }
 
-function recallMsg(msgId) {
-  if (!ws) return;
-  ws.send(JSON.stringify({ type: 'recall', messageId: msgId }));
-}
-
-function deleteMsg(msgId) {
-  if (!ws) return;
-  ws.send(JSON.stringify({ type: 'delete', messageId: msgId }));
-}
-
-function showImage(el) {
-  var src = el.getAttribute('data-full') || el.src;
-  document.getElementById('imgModalSrc').src = src;
-  document.getElementById('imgModal').classList.add('show');
-}
+function recallMsg(msgId) { if (ws) ws.send(JSON.stringify({ type: 'recall', messageId: msgId })); }
+function deleteMsg(msgId) { if (ws) ws.send(JSON.stringify({ type: 'delete', messageId: msgId })); }
 
 function updateNav() {
   var user = api.getUser();
@@ -220,6 +328,7 @@ function updateNav() {
     '<a href="profile.html">个人中心</a>' +
     '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
 }
+
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 function escAttr(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
 </script>

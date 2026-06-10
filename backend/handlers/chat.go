@@ -514,7 +514,7 @@ func splitStr(s, sep string) []string {
 
 // ========== 基于 peer_key 的聊天（不依赖订单） ==========
 
-// ChatHistoryPeer 通过 peer_key 获取聊天记录
+// ChatHistoryPeer 通过 peer_key 获取聊天记录（分页，每页20条）
 func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 	userID := c.GetString("userId")
 	peerKey := c.Query("peer_key")
@@ -529,8 +529,19 @@ func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 		return
 	}
 
+	limit := 20
+	before := c.Query("before") // createdAt 时间戳，加载此时间之前的消息
+
 	db := h.Store.GetDB()
-	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE peer_key = ? ORDER BY created_at ASC", peerKey)
+	var rows *sql.Rows
+	var err error
+	if before != "" {
+		rows, err = db.Query(`SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at 
+			FROM chat_messages WHERE peer_key = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`, peerKey, before, limit)
+	} else {
+		rows, err = db.Query(`SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at 
+			FROM chat_messages WHERE peer_key = ? ORDER BY created_at DESC LIMIT ?`, peerKey, limit)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -556,15 +567,18 @@ func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 		}
 
 		if m.Recalled {
-			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": "[消息已撤回]", "type": "text", "recalled": true, "createdAt": m.CreatedAt})
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": "[消息已撤回]", "type": "text", "msgType": "text", "recalled": true, "createdAt": m.CreatedAt})
 		} else {
-			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": m.Content, "type": m.Type, "recalled": false, "createdAt": m.CreatedAt})
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": m.Content, "type": m.Type, "msgType": m.Type, "recalled": false, "createdAt": m.CreatedAt})
 		}
 	}
 	if msgs == nil {
 		msgs = []gin.H{}
 	}
-	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
+
+	hasMore := len(msgs) >= limit
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"messages": msgs, "hasMore": hasMore}})
 }
 
 // ChatWSPeer WebSocket 连接（通过 peer_key，不依赖订单）

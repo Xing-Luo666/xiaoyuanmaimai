@@ -61,13 +61,31 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .top-nav a { color: var(--text-gray); margin-left: 16px; transition: color .2s }
 .top-nav a:hover { color: var(--primary) }
 
-/* ===== 主导航头部 ===== */
-.main-header {
-  background: var(--white);
+/* ===== 顶部导航粘性容器（子页面用） ===== */
+.nav-sticky-wrap {
   position: sticky;
   top: 0;
   z-index: 1000;
+}
+
+/* ===== 顶部导航栏 ===== */
+.top-nav {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  height: 36px;
+  line-height: 36px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+/* ===== 主导航头部 ===== */
+.main-header {
+  background: var(--white);
   box-shadow: 0 1px 2px rgba(0,0,0,.04)
+}
+.main-header.subpage {
+  box-shadow: none;
+  border-bottom: 1px solid #e5e7eb;
 }
 .header-inner {
   max-width: 1200px;
@@ -77,6 +95,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
   padding: 10px 20px;
   gap: 24px
 }
+.header-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 15px;
+  color: #6b7280;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.header-back:hover { background: #f3f4f6; color: #1f2937; }
+.header-back .arrow { font-size: 18px; line-height: 1; }
 
 .logo-area {
   flex-shrink: 0;
@@ -481,6 +514,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .form-select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: #F8FAFC; cursor: pointer; transition: all .2s }
 .form-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.1) }
 
+/* ===== 发布页 ===== */
+.publish-wrap { max-width: 700px; margin: 16px auto 40px; padding: 0 20px }
+
+/* ===== 订单页 ===== */
+.orders-wrap { max-width: 960px; margin: 16px auto 40px; padding: 0 20px }
+
 /* ===== 个人中心 ===== */
 .profile-wrap { max-width:1060px; margin:20px auto; padding:0 20px; display:grid; grid-template-columns:220px 1fr; gap:20px }
 .profile-sidebar { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); overflow:hidden; height:fit-content; position:sticky; top:100px }
@@ -604,3 +643,66 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .btn-lg { padding: 12px 28px; font-size: 15px }
 
 .item-detail-title { font-size: 22px; font-weight: 700 }
+
+/* ===== 聊天图片缩略图 ===== */
+.chat-img-thumb {
+  width: 120px; height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity .2s;
+  display: block;
+}
+.chat-img-thumb:hover { opacity: .85; }
+
+/* ===== 图片查看器弹窗 ===== */
+.img-viewer-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.92);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.img-viewer-overlay.show { display: flex; }
+.img-viewer-toolbar {
+  position: absolute; top: 12px; right: 16px;
+  display: flex; gap: 8px; z-index: 10;
+}
+.img-viewer-toolbar button {
+  padding: 8px 16px;
+  border: none; border-radius: 6px;
+  background: rgba(255,255,255,.15);
+  color: #fff; font-size: 13px;
+  cursor: pointer; transition: background .2s;
+}
+.img-viewer-toolbar button:hover { background: rgba(255,255,255,.25); }
+.img-viewer-zoom {
+  position: absolute; bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.12);
+  padding: 6px 16px; border-radius: 20px;
+  z-index: 10;
+}
+.img-viewer-zoom button {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,.2);
+  color: #fff; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+}
+.img-viewer-zoom button:hover { background: rgba(255,255,255,.35); }
+.img-viewer-zoom .zoom-val {
+  color: #fff; font-size: 12px; min-width: 40px; text-align: center;
+}
+.img-viewer-container {
+  overflow: auto;
+  max-width: 94vw; max-height: 88vh;
+  display: flex; align-items: center; justify-content: center;
+}
+.img-viewer-container img {
+  transition: transform .15s ease-out;
+  user-select: none; -webkit-user-drag: none;
+}
