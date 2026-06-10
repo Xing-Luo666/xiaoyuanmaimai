@@ -272,7 +272,8 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 		var info ConvInfo
 		var senderID, senderName string
 		var msgContent, msgType string
-		rows.Scan(&info.PeerKey, &msgContent, &msgType, &senderID, &senderName, &info.LastTime)
+		var dummyIsOther int
+		rows.Scan(&info.PeerKey, &msgContent, &msgType, &senderID, &senderName, &info.LastTime, &dummyIsOther)
 		if msgType == "image" {
 			info.LastMsg = "[图片]"
 		} else {
@@ -291,6 +292,9 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 		}
 		// 获取对方昵称
 		db.QueryRow("SELECT nickname FROM users WHERE id = ?", info.PeerID).Scan(&info.PeerName)
+		if info.PeerName == "" {
+			info.PeerName = info.PeerID
+		}
 
 		// 查询未读数
 		var lastRead sql.NullTime
@@ -506,4 +510,219 @@ func splitStr(s, sep string) []string {
 		s = s[idx+len(sep):]
 	}
 	return parts
+}
+
+// ========== 基于 peer_key 的聊天（不依赖订单） ==========
+
+// ChatHistoryPeer 通过 peer_key 获取聊天记录
+func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
+	userID := c.GetString("userId")
+	peerKey := c.Query("peer_key")
+	if peerKey == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "缺少 peer_key 参数"})
+		return
+	}
+	// 验证用户是否属于该 peer
+	parts := strings.SplitN(peerKey, ":", 2)
+	if len(parts) != 2 || (userID != parts[0] && userID != parts[1]) {
+		c.JSON(http.StatusForbidden, models.APIResponse{Code: 403, Message: "无权访问"})
+		return
+	}
+
+	db := h.Store.GetDB()
+	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE peer_key = ? ORDER BY created_at ASC", peerKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		return
+	}
+	defer rows.Close()
+
+	var msgs []gin.H
+	for rows.Next() {
+		var m models.ChatMessage
+		rows.Scan(&m.ID, &m.OrderID, &m.SenderID, &m.SenderName, &m.Content, &m.Type, &m.Recalled, &m.DeletedBy, &m.CreatedAt)
+
+		deleted := false
+		if m.DeletedBy != "" {
+			for _, d := range splitStr(m.DeletedBy, ",") {
+				if strings.TrimSpace(d) == userID {
+					deleted = true
+					break
+				}
+			}
+		}
+		if deleted {
+			continue
+		}
+
+		if m.Recalled {
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": "[消息已撤回]", "type": "text", "recalled": true, "createdAt": m.CreatedAt})
+		} else {
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": m.Content, "type": m.Type, "recalled": false, "createdAt": m.CreatedAt})
+		}
+	}
+	if msgs == nil {
+		msgs = []gin.H{}
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
+}
+
+// ChatWSPeer WebSocket 连接（通过 peer_key，不依赖订单）
+func (h *ChatHandler) ChatWSPeer(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少认证"})
+		return
+	}
+	claims, err := middleware.ParseToken(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "认证无效"})
+		return
+	}
+	userID := claims.UserID
+	username := claims.Username
+	peerKey := c.Query("peer_key")
+	if peerKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 peer_key 参数"})
+		return
+	}
+
+	// 验证 peer_key 格式和用户归属
+	parts := strings.SplitN(peerKey, ":", 2)
+	if len(parts) != 2 || (userID != parts[0] && userID != parts[1]) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权访问"})
+		return
+	}
+
+	db := h.Store.GetDB()
+
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	h.mu.Lock()
+	if h.rooms[peerKey] == nil {
+		h.rooms[peerKey] = make(map[*websocket.Conn]bool)
+	}
+	h.rooms[peerKey][conn] = true
+	h.mu.Unlock()
+
+	defer func() {
+		h.mu.Lock()
+		delete(h.rooms[peerKey], conn)
+		h.mu.Unlock()
+	}()
+
+	for {
+		_, msgBytes, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		var msg struct {
+			Type    string `json:"type"`
+			Content string `json:"content"`
+		}
+		json.Unmarshal(msgBytes, &msg)
+
+		if msg.Type == "recall" {
+			var recallReq struct {
+				MessageID string `json:"messageId"`
+			}
+			json.Unmarshal(msgBytes, &recallReq)
+			result, _ := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			affected, _ := result.RowsAffected()
+			if affected > 0 {
+				var createdAt time.Time
+				db.QueryRow("SELECT created_at FROM chat_messages WHERE id = ?", recallReq.MessageID).Scan(&createdAt)
+				recallBroadcast, _ := json.Marshal(gin.H{
+					"type":      "message",
+					"id":        recallReq.MessageID,
+					"content":   "[消息已撤回]",
+					"recalled":  true,
+					"createdAt": createdAt,
+				})
+				h.broadcast(peerKey, conn, recallBroadcast)
+			}
+			continue
+		}
+
+		if msg.Type == "delete" {
+			var delReq struct {
+				MessageID string `json:"messageId"`
+			}
+			json.Unmarshal(msgBytes, &delReq)
+			var currentDeleted string
+			db.QueryRow("SELECT deleted_by FROM chat_messages WHERE id = ?", delReq.MessageID).Scan(&currentDeleted)
+			newDeleted := currentDeleted
+			if newDeleted != "" {
+				newDeleted += ","
+			}
+			newDeleted += userID
+			db.Exec("UPDATE chat_messages SET deleted_by = ? WHERE id = ?", newDeleted, delReq.MessageID)
+			conn.WriteJSON(gin.H{"type": "deleted", "messageId": delReq.MessageID})
+			continue
+		}
+
+		now := time.Now()
+		id := genID("msg")
+		msgType := msg.Type
+		if msgType == "" {
+			msgType = "text"
+		}
+
+		// order_id 可以为空（无订单聊天）
+		_, err = db.Exec("INSERT INTO chat_messages (id, order_id, peer_key, sender_id, sender_name, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			id, "", peerKey, userID, username, msg.Content, msgType, now)
+		if err != nil {
+			continue
+		}
+
+		broadcastMsg, _ := json.Marshal(gin.H{
+			"type":       "message",
+			"id":         id,
+			"orderId":    "",
+			"senderId":   userID,
+			"senderName": username,
+			"content":    msg.Content,
+			"msgType":    msgType,
+			"createdAt":  now,
+		})
+		h.broadcast(peerKey, conn, broadcastMsg)
+	}
+}
+
+// InitChat 发起聊天 — 创建或获取与卖家的 peer 对话（无需订单）
+func (h *ChatHandler) InitChat(c *gin.Context) {
+	userID := c.GetString("userId")
+	var req struct {
+		PeerID   string `json:"peerId"`
+		PeerName string `json:"peerName"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.PeerID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if userID == req.PeerID {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "不能和自己聊天"})
+		return
+	}
+
+	peerKey := makePeerKey(userID, req.PeerID)
+
+	// 尝试获取对方昵称
+	db := h.Store.GetDB()
+	var peerName string
+	db.QueryRow("SELECT nickname FROM users WHERE id = ?", req.PeerID).Scan(&peerName)
+	if peerName == "" {
+		peerName = req.PeerName
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{
+		"peerKey":  peerKey,
+		"peerName": peerName,
+		"peerId":   req.PeerID,
+	}})
 }

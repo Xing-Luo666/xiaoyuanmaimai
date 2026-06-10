@@ -110,6 +110,8 @@
     <div id="tableList" class="loading">加载中...</div>
     <h3 style="margin-top:16px">聊天管理</h3>
     <div class="table-item" id="chatPeersTab" onclick="loadChatPeers()" style="cursor:pointer">💬 聊天用户对</div>
+    <h3 style="margin-top:16px">轮播卡片</h3>
+    <div class="table-item" id="bannersTab" onclick="loadBannerAdmin()" style="cursor:pointer">🖼 滚动卡片管理</div>
   </aside>
   <main class="main">
     <div class="toolbar">
@@ -468,7 +470,9 @@ async function submitForm() {
 }
 
 function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('show');
+  var overlay = document.getElementById('modalOverlay');
+  overlay.classList.remove('show');
+  overlay.style.display = 'none';
   editingRow = null;
 }
 
@@ -501,6 +505,115 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
 document.getElementById('modalOverlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeModal();
 });
+
+// ========== 轮播卡片管理 ==========
+async function loadBannerAdmin() {
+  document.querySelectorAll('.table-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('bannersTab').classList.add('active');
+  document.getElementById('tableTitle').textContent = '轮播卡片管理';
+  document.getElementById('addBtn').style.display = 'inline-flex';
+  document.getElementById('addBtn').textContent = '+ 新增卡片';
+  document.getElementById('addBtn').onclick = openBannerModal;
+  var area = document.getElementById('dataArea');
+
+  var data = await apiFetch('/admin/banners');
+  if (!data || data.code !== 200) { area.innerHTML = '<div class="empty">加载失败</div>'; return; }
+  var banners = data.data || [];
+  if (!banners.length) {
+    area.innerHTML = '<div class="empty">暂无数据 <button class="btn btn-outline btn-sm" onclick="resetBanners()">恢复默认</button></div>';
+    return;
+  }
+  area.innerHTML =
+    '<table class="data-table"><thead><tr><th>排序</th><th>标题</th><th>副标题</th><th>图片</th><th>链接</th><th>操作</th></tr></thead><tbody>' +
+    banners.map(function(b) {
+      return '<tr>' +
+        '<td>' + (b.sortOrder || 0) + '</td>' +
+        '<td>' + escHtml(b.title) + '</td>' +
+        '<td>' + escHtml(b.subtitle || '') + '</td>' +
+        '<td>' + (b.imageUrl ? '<img src="' + b.imageUrl + '" style="width:80px;height:40px;object-fit:cover;border-radius:4px">' : '无') + '</td>' +
+        '<td>' + (b.linkUrl || '无') + '</td>' +
+        '<td class="actions"><button class="btn btn-outline btn-sm" onclick="editBanner(\'' + b.id + '\')">编辑</button><button class="btn btn-danger btn-sm" onclick="deleteBanner(\'' + b.id + '\')">删除</button></td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>' +
+    '<button class="btn btn-outline" style="margin-top:12px" onclick="resetBanners()">恢复默认卡片</button>';
+}
+
+function openBannerModal(id) {
+  pendingDelete = null;
+  document.getElementById('modalTitle').textContent = id ? '编辑卡片' : '新增卡片';
+  var form = document.getElementById('modalForm');
+  if (id) {
+    var banners = window._bannerData || [];
+    var b = banners.find(function(x) { return x.id === id; }) || {};
+    form.innerHTML =
+      '<input type="hidden" name="id" value="' + (b.id || '') + '">' +
+      buildField('title', '标题', b.title || '') +
+      buildField('subtitle', '副标题', b.subtitle || '') +
+      buildField('imageUrl', '图片链接', b.imageUrl || '') +
+      buildField('linkUrl', '跳转链接', b.linkUrl || '') +
+      buildField('sortOrder', '排序序号', b.sortOrder || 0);
+  } else {
+    form.innerHTML =
+      buildField('title', '标题', '') +
+      buildField('subtitle', '副标题', '') +
+      buildField('imageUrl', '图片链接', '') +
+      buildField('linkUrl', '跳转链接', '') +
+      buildField('sortOrder', '排序序号', '0');
+  }
+  document.getElementById('modalOverlay').style.display = 'flex';
+  document.getElementById('modalOverlay').dataset.action = 'saveBanner';
+  document.getElementById('modalOverlay').dataset.id = id || '';
+}
+
+async function editBanner(id) {
+  var data = await apiFetch('/admin/banners');
+  if (data && data.code === 200) { window._bannerData = data.data || []; }
+  openBannerModal(id);
+}
+
+async function deleteBanner(id) {
+  if (!confirm('确定要删除这个卡片吗？')) return;
+  var res = await apiFetch('/admin/banners/' + id, { method: 'DELETE' });
+  if (res && res.code === 200) { showToast('删除成功'); loadBannerAdmin(); }
+  else { showToast(res?.message || '删除失败', 'error'); }
+}
+
+async function resetBanners() {
+  if (!confirm('确定恢复默认轮播卡片吗？这会删除所有自定义卡片。')) return;
+  var res = await apiFetch('/admin/banners/reset', { method: 'POST' });
+  if (res && res.code === 200) { showToast('已恢复默认'); loadBannerAdmin(); }
+  else { showToast(res?.message || '恢复失败', 'error'); }
+}
+
+// 扩展保存逻辑支持轮播卡片
+var origSubmitForm = submitForm;
+submitForm = async function() {
+  var overlay = document.getElementById('modalOverlay');
+  if (overlay.dataset.action === 'saveBanner') {
+    var form = document.getElementById('modalForm');
+    var fields = form.querySelectorAll('input[name]');
+    var body = {};
+    fields.forEach(function(f) { body[f.name] = f.name === 'sortOrder' ? parseInt(f.value) || 0 : f.value; });
+    var id = overlay.dataset.id;
+    var res;
+    if (id) {
+      res = await apiFetch('/admin/banners/' + id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      res = await apiFetch('/admin/banners', { method: 'POST', body: JSON.stringify(body) });
+    }
+    if (res && res.code === 200) { showToast('保存成功'); closeModal(); loadBannerAdmin(); }
+    else { showToast(res?.message || '保存失败', 'error'); }
+    return;
+  }
+  // 调用原保存逻辑
+  return origSubmitForm();
+};
+
+function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+function buildField(name, label, value) {
+  return '<div style="margin-bottom:10px"><label style="display:block;font-size:13px;color:#64748b;margin-bottom:4px">' + label + '</label><input name="' + name + '" value="' + (value || '') + '" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px"></div>';
+}
 
 init();
 </script>

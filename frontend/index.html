@@ -71,18 +71,6 @@
 
 <div class="banner-wrap">
   <div class="banner-carousel" id="bannerCarousel">
-    <div class="banner-slide active">
-      <div class="banner-content">
-        <h2>🎓 校园闲置交易集市</h2>
-        <p>学长学姐好物转让 · 品质有保障 · 校内面交更安心</p>
-      </div>
-    </div>
-    <div class="banner-slide">
-      <div class="banner-content">
-        <h2>📱 数码好物 学生价</h2>
-        <p>iPhone · iPad · 耳机 · 相机 — 应有尽有</p>
-      </div>
-    </div>
     <div class="banner-dots" id="bannerDots"></div>
   </div>
 </div>
@@ -175,10 +163,9 @@ var bannerIdx = 0;
 
 (function init() {
   renderCategories();
-  renderBannerDots();
+  loadBanners();
   loadRecommended();
   loadNewest();
-  startBannerAuto();
   api.verifyAndInit().then(function(ok) { if (ok) updateUserUI(); });
   checkDbStatusForAdmin();
 })();
@@ -220,11 +207,56 @@ async function checkDbStatusForAdmin() {
   }
 }
 
-function renderBannerDots() {
-  var slides = document.querySelectorAll('.banner-slide');
-  document.getElementById('bannerDots').innerHTML = Array.from(slides).map(function(_, i) {
+// 动态轮播卡片
+var bannersData = [];
+var bannerTimer = null;
+var gradColors = ['linear-gradient(135deg, #3B82F6 0%, #6366F1 100%)', 'linear-gradient(135deg, #06B6D4 0%, #3B82F6 100%)', 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)', 'linear-gradient(135deg, #10B981 0%, #3B82F6 100%)', 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)', 'linear-gradient(135deg, #F97316 0%, #EF4444 100%)'];
+
+function loadBanners() {
+  api.get('/banners').then(function(res) {
+    if (res.code === 200 && res.data && res.data.length) {
+      bannersData = res.data;
+    } else {
+      // 默认兜底
+      bannersData = [
+        {title: '🎓 校园闲置交易集市', subtitle: '学长学姐好物转让 · 品质有保障 · 校内面交更安心'},
+        {title: '📱 数码好物 学生价', subtitle: 'iPhone · iPad · 耳机 · 相机 — 应有尽有'},
+        {title: '📖 二手书籍 白菜价', subtitle: '教材教辅 · 考研资料 · 课外读物'},
+        {title: '🏠 寝室好物 大甩卖', subtitle: '台灯 · 收纳 · 小电器 · 生活用品'}
+      ];
+    }
+    renderBanners();
+    startBannerAuto();
+  }).catch(function(err) {
+    // fallback
+    bannersData = [
+      {title: '🎓 校园闲置交易集市', subtitle: '学长学姐好物转让 · 品质有保障 · 校内面交更安心'},
+      {title: '📱 数码好物 学生价', subtitle: 'iPhone · iPad · 耳机 · 相机 — 应有尽有'},
+      {title: '📖 二手书籍 白菜价', subtitle: '教材教辅 · 考研资料 · 课外读物'},
+      {title: '🏠 寝室好物 大甩卖', subtitle: '台灯 · 收纳 · 小电器 · 生活用品'}
+    ];
+    renderBanners();
+    startBannerAuto();
+  });
+}
+
+function renderBanners() {
+  var wrap = document.getElementById('bannerCarousel');
+  if (!bannersData.length) return;
+  var slidesHTML = bannersData.map(function(b, i) {
+    var hasImg = b.imageUrl ? ' has-image' : '';
+    var bgStyle = b.imageUrl ? ' style="background:linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.15)),url(' + b.imageUrl + ') center/cover"' : ' style="background:' + (gradColors[i % gradColors.length]) + '"';
+    var linkAttr = b.linkUrl ? ' onclick="location.href=\'' + escHtmlAttr(b.linkUrl) + '\'"' : '';
+    return '<div class="banner-slide' + (i === 0 ? ' active' : '') + hasImg + '"' + bgStyle + linkAttr + '><div class="banner-content"><h2>' + escHtml(b.title) + '</h2><p>' + escHtml(b.subtitle || '') + '</p></div></div>';
+  }).join('');
+  var dotsHTML = bannersData.map(function(_, i) {
     return '<div class="banner-dot' + (i === 0 ? ' active' : '') + '" onclick="goBanner(' + i + ')"></div>';
   }).join('');
+  wrap.innerHTML = slidesHTML + '<div class="banner-dots" id="bannerDots">' + dotsHTML + '</div>';
+}
+
+function escHtmlAttr(s) {
+  return String(s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
 function changeBanner(dir) {
@@ -245,7 +277,10 @@ function goBanner(i) {
   document.querySelectorAll('.banner-dot').forEach(function(d, j) { d.classList.toggle('active', j === i); });
 }
 
-function startBannerAuto() { setInterval(function() { changeBanner(1); }, 5000); }
+function startBannerAuto() {
+  if (bannerTimer) clearInterval(bannerTimer);
+  bannerTimer = setInterval(function() { changeBanner(1); }, 5000);
+}
 
 function renderCategories() {
   document.getElementById('categoryGrid').innerHTML = CATEGORIES.map(function(c) {

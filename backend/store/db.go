@@ -292,6 +292,17 @@ func (s *DBStore) initTables() error {
 			last_read_at DATETIME NOT NULL,
 			PRIMARY KEY (user_id, peer_key)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS banners (
+			id VARCHAR(64) PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			subtitle VARCHAR(255) DEFAULT '',
+			image_url VARCHAR(1024) DEFAULT '',
+			link_url VARCHAR(1024) DEFAULT '',
+			sort_order INT DEFAULT 0,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, ddl := range tables {

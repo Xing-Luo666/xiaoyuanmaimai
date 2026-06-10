@@ -56,7 +56,7 @@
 
 <script src="../js/api.js"></script>
 <script>
-var orderId, userId, ws;
+var orderId, userId, ws, peerKey, peerName;
 var messages = [];
 
 (async function() {
@@ -65,20 +65,38 @@ var messages = [];
   userId = user.userId;
   updateNav();
 
-  orderId = new URLSearchParams(location.search).get('orderId');
-  if (!orderId) { alert('缺少订单ID'); return; }
+  var params = new URLSearchParams(location.search);
+  orderId = params.get('orderId');
+  peerKey = params.get('peer_key');
+  peerName = params.get('peer_name') || '聊天';
+
+  if (!orderId && !peerKey) { alert('缺少参数'); return; }
 
   // 加载历史
-  var res = await api.getChatHistory(orderId);
+  var res;
+  if (peerKey) {
+    res = await api.getChatHistoryPeer(peerKey);
+  } else {
+    res = await api.getChatHistory(orderId);
+  }
   if (res.code === 200) {
     messages = res.data || [];
     renderMessages();
   }
 
+  // 设置标题
+  document.getElementById('chatTitle').textContent = peerKey ? peerName : '订单聊天';
+  document.getElementById('orderInfo').textContent = peerKey ? '' : '订单号: ' + orderId;
+
   // 连接 WebSocket
   var token = api.token;
   var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var wsURL = protocol + '//' + location.host + '/api/chat/ws/' + orderId + '?token=' + encodeURIComponent(token);
+  var wsURL;
+  if (peerKey) {
+    wsURL = protocol + '//' + location.host + '/api/chat/ws/peer?peer_key=' + encodeURIComponent(peerKey) + '&token=' + encodeURIComponent(token);
+  } else {
+    wsURL = protocol + '//' + location.host + '/api/chat/ws/' + orderId + '?token=' + encodeURIComponent(token);
+  }
   ws = new WebSocket(wsURL);
   ws.onopen = function() { console.log('WebSocket connected'); };
   ws.onmessage = function(e) {
@@ -86,14 +104,12 @@ var messages = [];
     if (msg.type === 'deleted') {
       messages = messages.filter(function(m){ return m.id !== msg.messageId; });
     } else if (msg.type === 'recall') {
-      // 兼容旧版撤回消息
       var m = messages.find(function(x){ return x.id === msg.messageId; });
       if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
     } else if (msg.recalled) {
       var m = messages.find(function(x){ return x.id === msg.id; });
       if (m) { m.content = '[消息已撤回]'; m.recalled = true; }
     } else {
-      // 去重：避免历史消息与WebSocket重复
       var existing = messages.find(function(x){ return x.id === msg.id; });
       if (!existing) { messages.push(msg); }
     }

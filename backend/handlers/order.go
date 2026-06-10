@@ -19,20 +19,43 @@ func NewOrderHandler(s *store.DBStore) *OrderHandler {
 	return &OrderHandler{Store: s}
 }
 
+type createOrderReq struct {
+	ProductID string               `json:"productId" binding:"required"`
+	Message   string               `json:"message"`
+	Price     float64              `json:"price"`
+	Quantity  int                  `json:"quantity"`
+	Spec      string               `json:"spec"`
+	Specs     []createOrderReqSpec `json:"specs"`
+}
+
+type createOrderReqSpec struct {
+	SpecID   string  `json:"specId"`
+	Name     string  `json:"name"`
+	Quantity int     `json:"quantity"`
+	Price    float64 `json:"price"`
+}
+
 func (h *OrderHandler) Create(c *gin.Context) {
 	userID := c.GetString("userId")
 	username := c.GetString("username")
 
-	var req struct {
-		ProductID string  `json:"productId" binding:"required"`
-		Message   string  `json:"message"`
-		Price     float64 `json:"price"`
-		Quantity  int     `json:"quantity"`
-		Spec      string  `json:"spec"`
-	}
+	var req createOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "参数错误"})
 		return
+	}
+	// 兼容前端 specs 数组格式：从 specs[0] 提取 spec
+	if req.Spec == "" && len(req.Specs) > 0 {
+		req.Spec = req.Specs[0].SpecID
+		if req.Spec == "" {
+			req.Spec = req.Specs[0].Name
+		}
+		if req.Quantity <= 0 {
+			req.Quantity = req.Specs[0].Quantity
+		}
+		if req.Price <= 0 && req.Specs[0].Price > 0 {
+			req.Price = req.Specs[0].Price
+		}
 	}
 	if req.Quantity <= 0 {
 		req.Quantity = 1

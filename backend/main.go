@@ -238,6 +238,10 @@ func main() {
 		api.GET("/products", productHandler.List)
 		api.GET("/products/:id", productHandler.Get)
 
+		// 轮播卡片（公开接口）
+		bannerHandler := handlers.NewBannerHandler(dbStore)
+		api.GET("/banners", bannerHandler.GetBanners)
+
 		auth := api.Group("")
 		auth.Use(middleware.AuthRequired())
 		{
@@ -277,6 +281,9 @@ func main() {
 			// 聊天
 			auth.GET("/chat/:orderId", chatHandler.ChatHistory)
 			auth.GET("/chat/ws/:orderId", chatHandler.ChatWS)
+			auth.GET("/chat/peer/history", chatHandler.ChatHistoryPeer)
+			auth.GET("/chat/ws/peer", chatHandler.ChatWSPeer)
+			auth.POST("/chat/init", chatHandler.InitChat)
 			auth.GET("/chat-list", chatHandler.ChatList)
 			auth.GET("/chat-unread", chatHandler.ChatUnreadCount)
 			auth.POST("/chat-read", chatHandler.ChatRead)
@@ -297,6 +304,12 @@ func main() {
 			admin.GET("/chat/peers", chatHandler.AdminChatPeers)
 			admin.GET("/chat/messages", chatHandler.AdminChatMessages)
 			admin.DELETE("/chat/messages", chatHandler.AdminChatDelete)
+			// 轮播卡片管理
+			admin.GET("/banners", bannerHandler.AdminListBanners)
+			admin.POST("/banners", bannerHandler.AdminCreateBanner)
+			admin.PUT("/banners/:id", bannerHandler.AdminUpdateBanner)
+			admin.DELETE("/banners/:id", bannerHandler.AdminDeleteBanner)
+			admin.POST("/banners/reset", bannerHandler.AdminResetBanners)
 		}
 	}
 

@@ -182,8 +182,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
   background-size: cover; background-position: center
 }
 .banner-slide.active { opacity: 1 }
-.banner-slide:nth-child(1) { background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%) }
-.banner-slide:nth-child(2) { background: linear-gradient(135deg, #06B6D4 0%, #3B82F6 100%) }
+.banner-slide.has-image .banner-content {
+  background: rgba(0,0,0,.35); border-radius: 12px; padding: 20px 32px
+}
 .banner-content {
   text-align: center; color: #fff; z-index: 1
 }

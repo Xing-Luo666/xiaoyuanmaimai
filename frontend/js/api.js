@@ -223,7 +223,8 @@ const api = {
   async addHistory(data) { return this.post('/history', data); },
 
   // 聊天
-  async getChatHistory(orderId) { return this.get('/chat/' + orderId); }
+  async getChatHistory(orderId) { return this.get('/chat/' + orderId); },
+  async getChatHistoryPeer(peerKey) { return this.get('/chat/peer/history', { peer_key: peerKey }); },
 };
 
 (function exposeGlobals() {
