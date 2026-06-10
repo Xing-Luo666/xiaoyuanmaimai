@@ -38,6 +38,10 @@
       <button class="search-btn" onclick="doSearch()">搜索</button>
     </div>
     <div class="header-icons">
+      <div class="header-icon-item" onclick="location.href='pages/chat-list.html'" title="消息" style="position:relative">
+        💬 <span>消息</span>
+        <span id="chatBadge" style="display:none;position:absolute;top:-4px;right:2px;min-width:18px;height:18px;line-height:18px;text-align:center;background:#ef4444;color:#fff;border-radius:9px;font-size:10px;padding:0 4px"></span>
+      </div>
       <div class="header-icon-item" onclick="location.href='pages/orders.html'" title="我的订单">
         📋 <span>订单</span>
       </div>
@@ -291,6 +295,22 @@ function escHtml(s) {
   if (!s) return '';
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// 未读消息红点
+function updateChatBadge() {
+  var badge = document.getElementById('chatBadge');
+  if (!api.token) { badge.style.display = 'none'; return; }
+  api.get('/chat-unread').then(function(res) {
+    if (res.code === 200 && res.data && res.data.count > 0) {
+      badge.style.display = 'inline-block';
+      badge.textContent = res.data.count > 99 ? '99+' : res.data.count;
+    } else {
+      badge.style.display = 'none';
+    }
+  }).catch(function() { badge.style.display = 'none'; });
+}
+updateChatBadge();
+setInterval(updateChatBadge, 15000);
 </script>
 </body>
 </html>

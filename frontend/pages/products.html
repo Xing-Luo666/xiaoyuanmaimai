@@ -10,23 +10,24 @@
 
 <div class="top-nav">
   <div class="top-nav-inner">
-    <span>校园二手交易平台</span>
+    <span>欢迎来到校园二手交易平台！</span>
     <div id="topNavRight">
-      <a href="../index.html">首页</a>
-      <a href="orders.html">我的订单</a>
-      <a href="publish.html">卖闲置</a>
-      <a href="login.html">登录</a>
+      <a href="login.html">请登录</a>
+      <a href="register.html">免费注册</a>
     </div>
   </div>
 </div>
 
-<header class="main-header">
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb">
   <div class="header-inner">
-    <div class="logo-area" onclick="location.href='../index.html'">
+    <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer">
       <div class="logo-icon">📚</div>
-      <div><div class="logo-text">商品广场</div><div class="logo-sub">发现好物</div></div>
+      <div>
+        <div class="logo-text">校园二手</div>
+        <div class="logo-sub">闲置交易平台</div>
+      </div>
     </div>
-    <div class="search-area"><input type="text" id="listSearch" placeholder="搜索商品关键词..." onkeydown="if(event.key==='Enter')applyFilters()"><button class="search-btn" onclick="applyFilters()">搜索</button></div>
+    <a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a>
   </div>
 </header>
 
@@ -93,10 +94,10 @@ function updateNav() {
 }
 
 function renderFilterOptions() {
-  document.getElementById('catFilters').innerHTML = [{v:'all',l:'全部'}].concat(CATEGORIES).map(function(c) {
+  document.getElementById('catFilters').innerHTML = [{value:'all',label:'全部'}].concat(CATEGORIES).map(function(c) {
     return '<span class="filter-opt' + (currentFilters.category === c.value ? ' active' : '') + '" onclick="currentFilters.category=\'' + c.value + '\';renderFilterOptions();applyFilters()">' + c.label + '</span>';
   }).join('');
-  document.getElementById('campusFilters').innerHTML = [{v:'all',l:'全部校区'}].concat(CAMPUSES).map(function(c) {
+  document.getElementById('campusFilters').innerHTML = [{value:'all',label:'全部校区'}].concat(CAMPUSES).map(function(c) {
     return '<span class="filter-opt' + (currentFilters.campus === c.value ? ' active' : '') + '" onclick="currentFilters.campus=\'' + c.value + '\';renderFilterOptions();applyFilters()">' + c.label + '</span>';
   }).join('');
 }

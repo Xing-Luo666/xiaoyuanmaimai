@@ -19,10 +19,28 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📋</div><div class="logo-text" style="font-size:16px">我的订单</div></div>
-  <div><a href="cart.html">🛒 购物车</a><a href="../index.html">首页</a></div>
+<div class="top-nav">
+  <div class="top-nav-inner">
+    <span>欢迎来到校园二手交易平台！</span>
+    <div id="topNavRight">
+      <a href="login.html">请登录</a>
+      <a href="register.html">免费注册</a>
+    </div>
+  </div>
 </div>
+
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb">
+  <div class="header-inner">
+    <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer">
+      <div class="logo-icon">📚</div>
+      <div>
+        <div class="logo-text">校园二手</div>
+        <div class="logo-sub">闲置交易平台</div>
+      </div>
+    </div>
+    <a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a>
+  </div>
+</header>
 
 <div class="orders-wrap">
   <div class="orders-tabs">
@@ -38,6 +56,14 @@ var currentRole = 'buyer';
 
 (async function() {
   if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  var user = api.getUser();
+  if (user) {
+    document.getElementById('topNavRight').innerHTML =
+      '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+      '<a href="../index.html">首页</a>' +
+      '<a href="profile.html">个人中心</a>' +
+      '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+  }
   loadOrders('buyer');
 })();
 
@@ -81,10 +107,6 @@ async function loadOrders(role) {
     // 卖家: 取消售卖
     if (o.status === 'pending' && role === 'seller') {
       footerHTML += '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消售卖</button></div>';
-    }
-    // 聊天按钮
-    if (o.status !== 'cancelled' && o.status !== 'rejected') {
-      footerHTML += '<div class="order-card-footer"><a href="chat.html?orderId='+o.id+'" class="mall-btn mall-btn-outline mall-btn-sm">💬 聊天</a></div>';
     }
 
     return '<div class="order-card">' +

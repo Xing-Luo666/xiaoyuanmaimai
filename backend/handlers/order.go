@@ -104,12 +104,15 @@ func (h *OrderHandler) Create(c *gin.Context) {
 			found := false
 			for i := range specs {
 				if specs[i].Name == req.Spec || specs[i].ID == req.Spec {
-					if specs[i].Stock < req.Quantity {
+					if specs[i].Stock >= 0 && specs[i].Stock < req.Quantity {
 						tx.Rollback()
 						c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足"})
 						return
 					}
-					specs[i].Stock -= req.Quantity
+					if specs[i].Stock > 0 {
+						specs[i].Stock -= req.Quantity
+					}
+					// stock==-1 表示无限，不减少
 					found = true
 					break
 				}
@@ -117,6 +120,18 @@ func (h *OrderHandler) Create(c *gin.Context) {
 			if found {
 				newSpecsJSON, _ := json.Marshal(specs)
 				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID)
+
+				// 检查是否所有规格库存都为0（排除无限库存 -1）
+				allSoldOut := true
+				for _, s := range specs {
+					if s.Stock == -1 || s.Stock > 0 {
+						allSoldOut = false
+						break
+					}
+				}
+				if allSoldOut {
+					tx.Exec("UPDATE products SET status = 'sold_out' WHERE id = ?", req.ProductID)
+				}
 			}
 		}
 	}
@@ -247,8 +262,7 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	if req.Status == "rejected" || req.Status == "cancelled" {
-		_, err = tx.Exec("UPDATE products SET status = 'selling' WHERE id = ?", o.ProductID)
-		// 恢复规格库存
+		// 恢复规格库存 & 若商品是sold_out则改回selling
 		if o.SpecName != "" {
 			var specsJSON string
 			tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", o.ProductID).Scan(&specsJSON)
@@ -257,7 +271,9 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 				json.Unmarshal([]byte(specsJSON), &specs)
 				for i := range specs {
 					if specs[i].Name == o.SpecName || specs[i].ID == o.SpecName {
-						specs[i].Stock += o.Quantity
+						if specs[i].Stock >= 0 {
+							specs[i].Stock += o.Quantity
+						}
 						break
 					}
 				}
@@ -265,8 +281,8 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), o.ProductID)
 			}
 		}
-	} else if req.Status == "completed" || req.Status == "shipped" {
-		_, err = tx.Exec("UPDATE products SET status = 'sold' WHERE id = ?", o.ProductID)
+		// 恢复商品为上架状态
+		tx.Exec("UPDATE products SET status = 'selling' WHERE id = ? AND status IN ('sold_out', 'sold')", o.ProductID)
 	}
 	if err != nil {
 		tx.Rollback()

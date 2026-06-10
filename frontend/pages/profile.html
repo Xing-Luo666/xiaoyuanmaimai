@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="../css/mall.css">
 </head>
 <body>
-<div class="top-nav"><div class="top-nav-inner"><span>校园二手交易平台</span><div id="topNavRight"><a href="../index.html">首页</a> <a href="products.html">商品广场</a> <a href="orders.html">我的订单</a> <a href="javascript:void(0)" onclick="api.logout()">退出</a></div></div></div>
-<header class="main-header"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'"><div class="logo-icon">📚</div><div><div class="logo-text">个人中心</div></div></div><div class="search-area"><input type="text" placeholder="搜索..." onkeydown="if(event.key==='Enter')location.href='products.html?keyword='+encodeURIComponent(this.value)"><button class="search-btn" onclick="location.href='products.html?keyword='+encodeURIComponent(document.querySelector('.search-area input').value)">搜索</button></div></div></header>
+<div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a></div></header>
 
 <div class="profile-wrap">
   <aside class="profile-sidebar">
@@ -33,6 +33,14 @@ var currentUser = null;
 (function() {
   api.verifyAndInit().then(function(ok) {
     if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
+    var user = api.getUser();
+    if (user) {
+      document.getElementById('topNavRight').innerHTML =
+        '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+        '<a href="../index.html">首页</a>' +
+        '<a href="orders.html">我的订单</a>' +
+        '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+    }
     api.get('/user/me').then(function(res) {
       if (res.code !== 200) { api.logout(); return; }
       currentUser = res.data;

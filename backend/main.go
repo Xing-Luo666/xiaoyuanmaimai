@@ -277,6 +277,9 @@ func main() {
 			// 聊天
 			auth.GET("/chat/:orderId", chatHandler.ChatHistory)
 			auth.GET("/chat/ws/:orderId", chatHandler.ChatWS)
+			auth.GET("/chat-list", chatHandler.ChatList)
+			auth.GET("/chat-unread", chatHandler.ChatUnreadCount)
+			auth.POST("/chat-read", chatHandler.ChatRead)
 		}
 
 		// 管理员接口
@@ -297,7 +300,12 @@ func main() {
 		}
 	}
 
-	frontendDir := filepath.Join(execDir, "..", "frontend")
+	var frontendDir string
+	if _, err := os.Stat(filepath.Join(execDir, "frontend")); err == nil {
+		frontendDir = filepath.Join(execDir, "frontend")
+	} else {
+		frontendDir = filepath.Join(execDir, "..", "frontend")
+	}
 	r.Static("/css", filepath.Join(frontendDir, "css"))
 	r.Static("/js", filepath.Join(frontendDir, "js"))
 	r.Static("/pages", filepath.Join(frontendDir, "pages"))

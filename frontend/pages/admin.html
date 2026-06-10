@@ -329,7 +329,7 @@ async function selectTable(name) {
   const data = await apiFetch('/admin/tables/' + name);
   if (!data || data.code !== 200) return;
   currentColumns = data.data.columns;
-  currentData = data.data.rows;
+  currentData = data.data.rows || [];
 
   const area = document.getElementById('dataArea');
   if (currentData.length === 0) {

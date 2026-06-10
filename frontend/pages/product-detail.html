@@ -21,17 +21,9 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div class="logo-text" style="font-size:16px">商品详情</div></div>
-  <div>
-    <a href="products.html">商品广场</a>
-    <a href="orders.html">订单</a>
-    <a href="profile.html">个人中心</a>
-    <a href="login.html" id="navLogin">登录</a>
-  </div>
-</div>
-
-<div class="publish-wrap" style="margin-top:16px">
+<div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a></div></header>
+    <div class="publish-wrap" style="margin-top:16px">
   <div id="detailContent" style="text-align:center;padding:80px;"><p>⏳ 加载中...</p></div>
 </div>
 
@@ -69,8 +61,14 @@ var isFavorited = false;
 function updateNav() {
   var user = api.getUser();
   if (!user) return;
-  document.getElementById('navLogin').textContent = user.username;
-  document.getElementById('navLogin').href = 'profile.html';
+  var el = document.getElementById('topNavRight');
+  if (el) {
+    el.innerHTML = '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+      '<a href="../index.html">首页</a>' +
+      '<a href="orders.html">我的订单</a>' +
+      '<a href="profile.html">个人中心</a>' +
+      '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+  }
 }
 
 function showError(msg) {
@@ -92,7 +90,8 @@ function renderDetail() {
   if (specs.length > 0) {
     specHTML = '<div style="margin:12px 0"><label class="form-label">选择规格</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">';
     specs.forEach(function(s) {
-      specHTML += '<div class="spec-option'+(selectedSpec && selectedSpec.id===s.id?' active':'')+'" onclick="selectSpec(\''+s.id+'\')" data-sid="'+s.id+'">'+escHtml(s.name)+'<br><span style="font-size:12px;color:#ef4444">¥'+s.price.toFixed(2)+'</span>'+(s.stock>0?'<br><span style="font-size:11px;color:#9ca3af">库存:'+s.stock+'</span>':'<br><span style="font-size:11px;color:#ef4444">无货</span>')+'</div>';
+      var stockText = s.stock === -1 ? '<br><span style="font-size:11px;color:#22c55e">无限库存</span>' : (s.stock > 0 ? '<br><span style="font-size:11px;color:#9ca3af">库存:'+s.stock+'</span>' : '<br><span style="font-size:11px;color:#ef4444">无货</span>');
+      specHTML += '<div class="spec-option'+(selectedSpec && selectedSpec.id===s.id?' active':'')+'" onclick="selectSpec(\''+s.id+'\')" data-sid="'+s.id+'">'+escHtml(s.name)+'<br><span style="font-size:12px;color:#ef4444">¥'+s.price.toFixed(2)+'</span>'+(s.oriPrice>s.price?' <span style="font-size:11px;color:#9ca3af;text-decoration:line-through">¥'+s.oriPrice.toFixed(2)+'</span>':'')+stockText+'</div>';
     });
     specHTML += '</div></div>';
   }

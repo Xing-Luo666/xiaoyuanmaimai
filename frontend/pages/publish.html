@@ -27,15 +27,10 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div class="logo-text" style="font-size:16px">发布商品</div></div>
-  <div>
-    <a href="products.html" class="btn">← 返回列表</a>
-    <a href="../index.html" class="btn">首页</a>
-  </div>
-</div>
+<div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a></div></header>
 
-<div class="publish-wrap">
+<div class="publish-wrap" style="margin-top:16px">
   <div class="publish-card">
     <h2>📦 发布商品</h2>
     <form id="publishForm">
@@ -45,16 +40,14 @@
         <div class="form-group"><label class="form-label">成色</label><select class="form-select" id="condition"></select></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">售价 (元) *</label><input type="number" class="form-input" id="price" placeholder="0.00" required step="0.01" min="0"></div>
-        <div class="form-group"><label class="form-label">原价 (元)</label><input type="number" class="form-input" id="oriPrice" placeholder="选填" step="0.01" min="0"></div>
-      </div>
-      <div class="form-row">
         <div class="form-group"><label class="form-label">校区 *</label><select class="form-select" id="campus" required></select></div>
         <div class="form-group"><label class="form-label">楼栋</label><select class="form-select" id="building"></select></div>
       </div>
       <div class="form-group">
-        <label class="form-label">商品规格 <span style="color:#9ca3af;font-weight:400">（可选，设置不同规格和价格）</span></label>
-        <div id="specsContainer"></div>
+        <label class="form-label">商品规格 * <span style="color:#ef4444;font-weight:400">（至少添加一个规格）</span></label>
+        <div id="specsContainer" style="min-height:60px;border:2px dashed #e5e7eb;border-radius:8px;padding:12px;background:#fafbfc">
+          <div style="text-align:center;color:#9ca3af;font-size:13px;padding:20px" id="specsEmpty">还没有添加规格，请点击下方按钮添加</div>
+        </div>
         <button type="button" class="btn btn-outline btn-sm" onclick="addSpec()" style="margin-top:6px">+ 添加规格</button>
       </div>
       <div class="form-group"><label class="form-label">商品描述</label><textarea class="form-input" id="description" placeholder="详细描述商品状况、购买时间、使用频率等..." rows="5"></textarea></div>
@@ -80,6 +73,15 @@
 (function() {
   api.verifyAndInit().then(function(ok) {
     if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
+    var user = api.getUser();
+    if (user) {
+      document.getElementById('topNavRight').innerHTML =
+        '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+        '<a href="../index.html">首页</a>' +
+        '<a href="orders.html">我的订单</a>' +
+        '<a href="profile.html">个人中心</a>' +
+        '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+    }
   });
 
   CATEGORIES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('category').appendChild(opt); });
@@ -91,26 +93,57 @@
   window.addSpec = function() {
     specIdCounter++;
     var container = document.getElementById('specsContainer');
+    document.getElementById('specsEmpty').style.display = 'none';
     var div = document.createElement('div');
-    div.className = 'form-row';
-    div.style.marginBottom = '6px';
+    div.className = 'spec-row';
     div.id = 'spec-' + specIdCounter;
-    div.innerHTML = '<input type="text" class="form-input" placeholder="规格名（如：红色128G）" style="flex:1">' +
-      '<input type="number" class="form-input" placeholder="价格" step="0.01" min="0" style="width:120px">' +
-      '<input type="number" class="form-input" placeholder="库存" min="1" value="1" style="width:80px">' +
-      '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'spec-' + specIdCounter + '\').remove()">×</button>';
+    div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;background:#fff;padding:10px;border-radius:8px;border:1px solid #e5e7eb';
+    div.innerHTML = 
+      '<input type="text" class="form-input" placeholder="规格名（如：红色128G）" style="flex:1;min-width:100px" required>' +
+      '<span style="font-size:12px;color:#6b7280;white-space:nowrap">原价</span>' +
+      '<input type="number" class="form-input" placeholder="原价" step="0.01" min="0" style="width:90px" required>' +
+      '<span style="font-size:12px;color:#6b7280;white-space:nowrap">现价</span>' +
+      '<input type="number" class="form-input" placeholder="现价" step="0.01" min="0" style="width:90px" required>' +
+      '<span style="font-size:12px;color:#6b7280;white-space:nowrap">库存</span>' +
+      '<input type="number" class="form-input spec-stock" placeholder="库存" min="1" value="1" style="width:70px">' +
+      '<label style="font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:2px;cursor:pointer"><input type="checkbox" class="spec-infinite" onchange="toggleInfinite(this)" style="accent-color:#2563eb">无限</label>' +
+      '<button type="button" class="btn btn-outline btn-sm" onclick="removeSpec(this)" style="color:#ef4444;border-color:#ef4444">×</button>';
     container.appendChild(div);
+  };
+
+  window.removeSpec = function(btn) {
+    var row = btn.parentElement;
+    row.remove();
+    if (document.getElementById('specsContainer').querySelectorAll('.spec-row').length === 0) {
+      document.getElementById('specsEmpty').style.display = '';
+    }
+  };
+
+  window.toggleInfinite = function(cb) {
+    var stockInput = cb.parentElement.parentElement.querySelector('.spec-stock');
+    if (cb.checked) {
+      stockInput.value = '-1';
+      stockInput.disabled = true;
+      stockInput.style.background = '#f3f4f6';
+    } else {
+      stockInput.value = '1';
+      stockInput.disabled = false;
+      stockInput.style.background = '';
+    }
   };
 
   function getSpecs() {
     var specs = [];
-    document.querySelectorAll('#specsContainer .form-row').forEach(function(row) {
-      var inputs = row.querySelectorAll('input');
+    document.querySelectorAll('#specsContainer .spec-row').forEach(function(row) {
+      var inputs = row.querySelectorAll('input:not([type="checkbox"])');
       var name = inputs[0].value.trim();
-      var price = parseFloat(inputs[1].value);
-      var stock = parseInt(inputs[2].value) || 1;
-      if (name && price > 0) {
-        specs.push({ id: 's' + (specs.length+1), name: name, price: price, stock: stock });
+      var oriPrice = parseFloat(inputs[1].value) || 0;
+      var price = parseFloat(inputs[2].value) || 0;
+      var stock = parseInt(inputs[3].value) || 0;
+      var infinite = row.querySelector('.spec-infinite');
+      if (infinite && infinite.checked) stock = -1;
+      if (name) {
+        specs.push({ id: 's' + (specs.length+1), name: name, oriPrice: oriPrice, price: price, stock: stock });
       }
     });
     return specs;
@@ -199,6 +232,17 @@
 
   document.getElementById('publishForm').addEventListener('submit', function(e) {
     e.preventDefault();
+
+    var specs = getSpecs();
+    if (specs.length === 0) {
+      alert('请至少添加一个商品规格');
+      return;
+    }
+
+    // 使用第一个规格的现价作为商品默认价格
+    var defaultPrice = specs[0].price;
+    var defaultOriPrice = specs[0].oriPrice;
+
     var btn = document.getElementById('submitBtn');
     btn.disabled = true;
     document.getElementById('btnText').textContent = '提交中...';
@@ -206,10 +250,10 @@
       title: document.getElementById('title').value.trim(),
       description: document.getElementById('description').value.trim(),
       category: document.getElementById('category').value,
-      price: parseFloat(document.getElementById('price').value),
-      oriPrice: parseFloat(document.getElementById('oriPrice').value) || 0,
+      price: defaultPrice,
+      oriPrice: defaultOriPrice,
       images: uploadedImages,
-      specs: getSpecs(),
+      specs: specs,
       condition: document.getElementById('condition').value,
       campus: document.getElementById('campus').value,
       building: document.getElementById('building').value
@@ -226,6 +270,8 @@
     });
   });
 })();
+
+function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>

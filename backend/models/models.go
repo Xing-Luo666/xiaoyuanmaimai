@@ -16,10 +16,11 @@ type User struct {
 }
 
 type ProductSpec struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-	Stock int     `json:"stock"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Price    float64 `json:"price"`
+	OriPrice float64 `json:"oriPrice"`
+	Stock    int     `json:"stock"` // -1 = 无限库存
 }
 
 type Product struct {

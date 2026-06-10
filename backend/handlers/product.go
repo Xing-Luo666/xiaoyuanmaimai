@@ -130,6 +130,11 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if len(req.Specs) == 0 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "请至少添加一个商品规格"})
+		return
+	}
+
 	now := time.Now()
 	if len(req.Images) == 0 {
 		req.Images = []string{"/resources/default-product.gif"}

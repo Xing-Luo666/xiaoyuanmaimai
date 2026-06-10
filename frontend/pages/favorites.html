@@ -7,10 +7,8 @@
 <link rel="stylesheet" href="../css/mall.css">
 </head>
 <body>
-<div class="topbar">
-  <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">♥</div><div class="logo-text" style="font-size:16px">我的收藏</div></div>
-  <div><a href="products.html">商品广场</a><a href="cart.html">购物车</a><a href="history.html">历史</a><a href="../index.html">首页</a></div>
-</div>
+<div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
+<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="javascript:history.back()" style="font-size:22px;color:#1f2937;text-decoration:none;margin-left:auto">← 返回</a></div></header>
 <div class="publish-wrap" style="margin-top:16px">
   <div id="content" style="text-align:center;padding:80px"><p>⏳ 加载中...</p></div>
 </div>
@@ -19,6 +17,7 @@
 <script>
 (async function() {
   if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
+  updateNav();
   var res = await api.getFavorites();
   var list = res.data || [];
   if (list.length === 0) {
@@ -36,6 +35,16 @@
   html += '</div>';
   document.getElementById('content').innerHTML = html;
 })();
+function updateNav() {
+  var user = api.getUser();
+  if (!user) return;
+  document.getElementById('topNavRight').innerHTML =
+    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
+    '<a href="../index.html">首页</a>' +
+    '<a href="orders.html">我的订单</a>' +
+    '<a href="profile.html">个人中心</a>' +
+    '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
+}
 function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>

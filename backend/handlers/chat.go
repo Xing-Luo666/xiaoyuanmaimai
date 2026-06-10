@@ -233,6 +233,142 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
 }
 
+// ChatList 获取当前用户的所有对话列表（类似QQ）
+func (h *ChatHandler) ChatList(c *gin.Context) {
+	userID := c.GetString("userId")
+	db := h.Store.GetDB()
+
+	// 获取用户参与的所有peer_key及最后一条消息
+	rows, err := db.Query(`
+		SELECT cm.peer_key, cm.content, cm.type, cm.sender_id, cm.sender_name, cm.created_at,
+		       CASE WHEN cm.sender_id = ? THEN 0 ELSE 1 END AS is_other
+		FROM chat_messages cm
+		INNER JOIN (
+			SELECT peer_key, MAX(created_at) AS last_time
+			FROM chat_messages
+			WHERE peer_key LIKE CONCAT('%', ?, '%')
+			GROUP BY peer_key
+		) latest ON cm.peer_key = latest.peer_key AND cm.created_at = latest.last_time
+		ORDER BY cm.created_at DESC
+	`, userID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		return
+	}
+	defer rows.Close()
+
+	type ConvInfo struct {
+		PeerKey     string    `json:"peerKey"`
+		PeerName    string    `json:"peerName"`
+		PeerID      string    `json:"peerId"`
+		LastMsg     string    `json:"lastMsg"`
+		LastMsgType string    `json:"lastMsgType"`
+		LastTime    time.Time `json:"lastTime"`
+		UnreadCount int       `json:"unreadCount"`
+	}
+
+	var list []ConvInfo
+	for rows.Next() {
+		var info ConvInfo
+		var senderID, senderName string
+		var msgContent, msgType string
+		rows.Scan(&info.PeerKey, &msgContent, &msgType, &senderID, &senderName, &info.LastTime)
+		if msgType == "image" {
+			info.LastMsg = "[图片]"
+		} else {
+			info.LastMsg = truncateStr(msgContent, 50)
+		}
+		info.LastMsgType = msgType
+
+		// 解析对方信息
+		parts := strings.SplitN(info.PeerKey, ":", 2)
+		if len(parts) == 2 {
+			if parts[0] == userID {
+				info.PeerID = parts[1]
+			} else {
+				info.PeerID = parts[0]
+			}
+		}
+		// 获取对方昵称
+		db.QueryRow("SELECT nickname FROM users WHERE id = ?", info.PeerID).Scan(&info.PeerName)
+
+		// 查询未读数
+		var lastRead sql.NullTime
+		db.QueryRow("SELECT last_read_at FROM chat_read_cursors WHERE user_id = ? AND peer_key = ?", userID, info.PeerKey).Scan(&lastRead)
+		if lastRead.Valid {
+			db.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE peer_key = ? AND sender_id != ? AND created_at > ?",
+				info.PeerKey, userID, lastRead.Time).Scan(&info.UnreadCount)
+		} else {
+			db.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE peer_key = ? AND sender_id != ?",
+				info.PeerKey, userID).Scan(&info.UnreadCount)
+		}
+
+		list = append(list, info)
+	}
+	if list == nil {
+		list = []ConvInfo{}
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: list})
+}
+
+// ChatUnreadCount 获取未读消息总数
+func (h *ChatHandler) ChatUnreadCount(c *gin.Context) {
+	userID := c.GetString("userId")
+	db := h.Store.GetDB()
+
+	total := 0
+	// 获取用户参与的所有peer_key
+	rows, err := db.Query(`
+		SELECT DISTINCT peer_key FROM chat_messages
+		WHERE peer_key LIKE CONCAT('%', ?, '%')
+	`, userID)
+	if err != nil {
+		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"count": 0}})
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var peerKey string
+		rows.Scan(&peerKey)
+		var lastRead sql.NullTime
+		db.QueryRow("SELECT last_read_at FROM chat_read_cursors WHERE user_id = ? AND peer_key = ?", userID, peerKey).Scan(&lastRead)
+		if lastRead.Valid {
+			var cnt int
+			db.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE peer_key = ? AND sender_id != ? AND created_at > ?",
+				peerKey, userID, lastRead.Time).Scan(&cnt)
+			total += cnt
+		} else {
+			var cnt int
+			db.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE peer_key = ? AND sender_id != ?",
+				peerKey, userID).Scan(&cnt)
+			total += cnt
+		}
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"count": total}})
+}
+
+// ChatRead 标记某个对话为已读
+func (h *ChatHandler) ChatRead(c *gin.Context) {
+	userID := c.GetString("userId")
+	peerKey := c.Query("peer_key")
+	if peerKey == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "缺少 peer_key 参数"})
+		return
+	}
+
+	db := h.Store.GetDB()
+	now := time.Now()
+	_, err := db.Exec(`INSERT INTO chat_read_cursors (user_id, peer_key, last_read_at) VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE last_read_at = ?`, userID, peerKey, now, now)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "标记失败"})
+		return
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "ok"})
+}
+
 // ========== 管理员接口 ==========
 
 // AdminChatPeers 列出所有聊天用户对

@@ -285,6 +285,13 @@ func (s *DBStore) initTables() error {
 			INDEX idx_chat_order (order_id),
 			INDEX idx_chat_created (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS chat_read_cursors (
+			user_id VARCHAR(64) NOT NULL,
+			peer_key VARCHAR(128) NOT NULL,
+			last_read_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, peer_key)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, ddl := range tables {
