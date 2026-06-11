@@ -25,7 +25,7 @@
 
 <div class="nav-sticky-wrap">
   <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a></div></header>
+  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="products.html" class="header-back"><span class="arrow">←</span> 返回商品广场</a></div></header>
 </div>
     <div class="publish-wrap" style="margin-top:16px">
   <div id="detailContent" style="text-align:center;padding:80px;"><p>⏳ 加载中...</p></div>
@@ -197,7 +197,7 @@ function escHtmlAttr(s) { return String(s||'').replace(/'/g, "\\'").replace(/"/g
 async function contactSeller(sellerId, sellerName) {
   var res = await api.post('/chat/init', { peerId: sellerId, peerName: sellerName });
   if (res.code !== 200) { showToast('发起聊天失败: '+(res.message||'未知错误'), 'error'); return; }
-  location.href = 'chat.html?peer_key=' + encodeURIComponent(res.data.peerKey) + '&peer_name=' + encodeURIComponent(res.data.peerName);
+  location.href = 'chat.html?peer_key=' + encodeURIComponent(res.data.peerKey) + '&peer_name=' + encodeURIComponent(res.data.peerName) + '&from=detail&id=' + encodeURIComponent(currentProduct.id);
 }
 </script>
 </body>

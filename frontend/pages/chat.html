@@ -37,7 +37,7 @@
 <body>
 <div class="nav-sticky-wrap">
   <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a></div></header>
+  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="chat-list.html" class="header-back" id="headerBackLink"><span class="arrow">←</span> 返回消息</a></div></header>
 </div>
 <div class="chat-wrap">
   <div class="chat-inner-header">
@@ -96,7 +96,15 @@ var viewerSrc = '';     // 当前查看的图片URL
     peerKey = params.get('peer_key');
     peerName = params.get('peer_name') || '聊天';
 
-    if (!orderId && !peerKey) { alert('缺少参数'); return; }
+    if (!orderId && !peerKey) { showToast('缺少参数', 'error'); return; }
+
+    // 根据来源设置返回链接
+    var from = params.get('from');
+    var productId = params.get('id');
+    if (from === 'detail' && productId) {
+      document.getElementById('headerBackLink').href = 'product-detail.html?id=' + encodeURIComponent(productId);
+      document.getElementById('headerBackLink').innerHTML = '<span class="arrow">←</span> 返回商品详情';
+    }
 
     document.getElementById('chatTitle').textContent = peerName;
     document.getElementById('orderInfo').textContent = peerKey ? '' : '订单号: ' + orderId;

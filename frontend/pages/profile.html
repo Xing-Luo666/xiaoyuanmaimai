@@ -109,8 +109,8 @@ function loadOrders(role, containerId) {
 
 function handleOrder(orderId, status) {
   api.put('/orders/' + orderId + '/status', { status: status }).then(function(res) {
-    if (res.code === 200) { alert('操作成功！'); switchTab('myOrders', document.querySelector('.profile-menu-item[data-tab=myOrders]')); }
-    else { alert(res.message || '操作失败'); }
+    if (res.code === 200) { showToast('操作成功！'); switchTab('myOrders', document.querySelector('.profile-menu-item[data-tab=myOrders]')); }
+    else { showToast(res.message || '操作失败', 'error'); }
   });
 }
 
@@ -160,7 +160,7 @@ function loadCart() {
     };
     window.batchDelCart = function() {
       var ids = Object.keys(window._cartSelected || {});
-      if (!ids.length) { alert('请先选择商品'); return; }
+      if (!ids.length) { showToast('请先选择商品', 'warning'); return; }
       api.removeCartItems(ids).then(function() {
         ids.forEach(function(id){ var s=window._cartSelected||{}; delete s[id]; });
         items = items.filter(function(x){ return !ids.includes(x.id); });
@@ -170,7 +170,7 @@ function loadCart() {
     };
     window.batchBuyCart = async function() {
       var ids = Object.keys(window._cartSelected || {});
-      if (!ids.length) { alert('请先选择商品'); return; }
+      if (!ids.length) { showToast('请先选择商品', 'warning'); return; }
       var succ = 0;
       for (var i = 0; i < ids.length; i++) {
         var it = items.find(function(x){ return x.id === ids[i]; });
@@ -185,7 +185,7 @@ function loadCart() {
         if (!items.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">🛒</div><p>购物车空空如也</p></div>'; return; }
         renderCartList();
       }
-      alert('成功购买 ' + succ + ' 件商品');
+      showToast('成功购买 ' + succ + ' 件商品');
     };
   });
 }

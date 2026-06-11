@@ -121,8 +121,8 @@ async function loadOrders(role) {
 
 async function handleOrder(orderId, status) {
   var res = await api.put('/orders/' + orderId + '/status', { status: status });
-  if (res.code === 200) { alert('操作成功！'); loadOrders(currentRole); }
-  else { alert(res.message || '操作失败'); }
+  if (res.code === 200) { showToast('操作成功！'); loadOrders(currentRole); }
+  else { showToast(res.message || '操作失败', 'error'); }
 }
 
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }

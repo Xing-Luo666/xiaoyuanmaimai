@@ -125,7 +125,7 @@
     // 标记已读
     api.post('/chat-read?peer_key=' + encodeURIComponent(peerKey));
     // 直接进入对话（无需订单）
-    location.href = 'chat.html?peer_key=' + encodeURIComponent(peerKey) + '&peer_name=' + encodeURIComponent(peerName || '用户');
+    location.href = 'chat.html?peer_key=' + encodeURIComponent(peerKey) + '&peer_name=' + encodeURIComponent(peerName || '用户') + '&from=list';
   };
 
   function formatTime(t) {

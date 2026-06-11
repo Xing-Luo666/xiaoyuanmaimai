@@ -29,7 +29,7 @@
 
 <div class="nav-sticky-wrap">
   <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a></div></header>
+  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="profile.html" class="header-back"><span class="arrow">←</span> 返回个人中心</a></div></header>
 </div>
 
 <div class="publish-wrap" style="margin-top:16px">
@@ -237,7 +237,7 @@
 
     var specs = getSpecs();
     if (specs.length === 0) {
-      alert('请至少添加一个商品规格');
+      showToast('请至少添加一个商品规格', 'warning');
       return;
     }
 
@@ -264,10 +264,10 @@
       btn.disabled = false;
       document.getElementById('btnText').textContent = '发布商品';
       if (res.code === 200) {
-        alert('发布成功！');
-        location.href = 'product-detail.html?id=' + res.data.id;
+        showToast('发布成功！');
+        setTimeout(function(){ location.href = 'product-detail.html?id=' + res.data.id; }, 800);
       } else {
-        alert(res.message || '发布失败');
+        showToast(res.message || '发布失败', 'error');
       }
     });
   });
