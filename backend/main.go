@@ -324,7 +324,6 @@ func main() {
 	r.Static("/js", filepath.Join(frontendDir, "js"))
 	r.Static("/pages", filepath.Join(frontendDir, "pages"))
 	r.Static("/resources", filepath.Join(frontendDir, "resources"))
-	r.Static("/resources/chat", filepath.Join(frontendDir, "resources", "chat"))
 	r.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join(frontendDir, "index.html"))
 	})
