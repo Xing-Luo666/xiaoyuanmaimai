@@ -15,7 +15,7 @@ import (
 )
 
 func genID(prefix string) string {
-	b := make([]byte, 4)
+	b := make([]byte, 8)
 	rand.Read(b)
 	return prefix + "-" + hex.EncodeToString(b)
 }

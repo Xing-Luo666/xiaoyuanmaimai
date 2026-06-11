@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -141,6 +142,12 @@ func (s *DBStore) connect() error {
 		db.Close()
 		return err
 	}
+
+	// 连接池配置：适应高并发场景
+	db.SetMaxOpenConns(25)                 // 最大打开连接数
+	db.SetMaxIdleConns(10)                 // 最大空闲连接数
+	db.SetConnMaxLifetime(3 * time.Minute) // 连接最大存活时间
+	db.SetConnMaxIdleTime(1 * time.Minute) // 空闲连接最大存活时间
 
 	s.db = db
 	return nil

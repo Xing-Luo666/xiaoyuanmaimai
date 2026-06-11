@@ -177,9 +177,15 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 }
 
 func (h *ChatHandler) broadcast(peerKey string, senderConn *websocket.Conn, msg []byte) {
+	// 快照当前房间内所有连接，释放锁后再写，避免慢客户端阻塞整个广播
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	conns := make([]*websocket.Conn, 0, len(h.rooms[peerKey]))
 	for conn := range h.rooms[peerKey] {
+		conns = append(conns, conn)
+	}
+	h.mu.Unlock()
+
+	for _, conn := range conns {
 		conn.WriteMessage(websocket.TextMessage, msg)
 	}
 }

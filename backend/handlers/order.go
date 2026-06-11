@@ -63,21 +63,35 @@ func (h *OrderHandler) Create(c *gin.Context) {
 
 	db := h.Store.GetDB()
 
-	// 直接 SELECT 需要的字段，避免 scanProductRow 列数不匹配问题
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "下单失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 在事务内用行锁读取商品信息，杜绝竞态
 	var title, sellerID, sellerName, status string
 	var price float64
 	var productImage sql.NullString
-	err := db.QueryRow("SELECT title, seller_id, seller_name, price, status, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(images, '$[0]')), '') FROM products WHERE id = ?", req.ProductID).Scan(&title, &sellerID, &sellerName, &price, &status, &productImage)
+	err = tx.QueryRow("SELECT title, seller_id, seller_name, price, status, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(images, '$[0]')), '') FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&title, &sellerID, &sellerName, &price, &status, &productImage)
 	if err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "商品不存在"})
 		return
 	}
 
 	if status != "selling" {
+		tx.Rollback()
 		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "该商品已下架或已售出"})
 		return
 	}
 	if sellerID == userID {
+		tx.Rollback()
 		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "不能购买自己的商品"})
 		return
 	}
@@ -105,17 +119,6 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "下单失败"})
-		return
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
 
 	// 如果有规格，减少对应规格的库存
 	if req.Spec != "" {
