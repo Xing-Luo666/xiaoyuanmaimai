@@ -74,7 +74,7 @@ var currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'new
 (function init() {
   var params = new URLSearchParams(location.search);
   if (params.get('category')) currentFilters.category = params.get('category');
-  if (params.get('keyword')) { currentFilters.keyword = params.get('keyword'); document.getElementById('listSearch').value = params.get('keyword'); }
+  if (params.get('keyword')) { currentFilters.keyword = params.get('keyword'); var s = document.getElementById('listSearch'); if (s) s.value = params.get('keyword'); }
   if (params.get('sort')) currentFilters.sortBy = params.get('sort');
   renderFilterOptions();
   highlightCatNav();
@@ -102,26 +102,54 @@ function renderFilterOptions() {
   }).join('');
 }
 
-function setCategory(cat) { currentFilters.category = cat; renderFilterOptions(); highlightCatNav(); applyFilters(); }
-function setSort(sort, el) { currentFilters.sortBy = sort; document.querySelectorAll('.sort-tab').forEach(function(t) { t.classList.remove('active'); }); el.classList.add('active'); applyFilters(); }
+function setCategory(cat) {
+  currentFilters.category = cat;
+  highlightCatNav();
+  applyFilters();
+}
+function setSort(sort, el) {
+  currentFilters.sortBy = sort;
+  document.querySelectorAll('.sort-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  applyFilters();
+}
 
 function highlightCatNav() {
-  document.querySelectorAll('.cat-nav-item').forEach(function(item, i) { item.classList.toggle('active', i === 0 && currentFilters.category === 'all'); });
+  var cats = ['all', 'electronics', 'books', 'furniture', 'sports', 'entertainment', 'clothing'];
+  document.querySelectorAll('.cat-nav-item').forEach(function(item, i) {
+    item.classList.toggle('active', cats[i] === currentFilters.category);
+  });
 }
 function highlightSortTab() {
   document.querySelectorAll('.sort-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.sort === currentFilters.sortBy); });
 }
-function applyFilters() { currentFilters.keyword = document.getElementById('listSearch').value.trim(); loadProducts(); }
+function applyFilters() {
+  // 同步搜索框值
+  var searchEl = document.getElementById('listSearch');
+  if (searchEl) currentFilters.keyword = searchEl.value.trim();
+
+  // 更新侧边栏筛选器选中状态
+  renderFilterOptions();
+
+  // 更新 URL
+  var params = new URLSearchParams();
+  if (currentFilters.category !== 'all') params.set('category', currentFilters.category);
+  if (currentFilters.keyword) params.set('keyword', currentFilters.keyword);
+  if (currentFilters.sortBy !== 'newest') params.set('sort', currentFilters.sortBy);
+  var newUrl = location.pathname + (params.toString() ? '?' + params.toString() : '');
+  history.pushState(null, '', newUrl);
+
+  loadProducts();
+}
 
 function resetAll() {
   currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'newest' };
-  document.getElementById('listSearch').value = '';
+  var s = document.getElementById('listSearch'); if (s) s.value = '';
   document.getElementById('priceMin').value = '';
   document.getElementById('priceMax').value = '';
   document.querySelectorAll('.cat-nav-item').forEach(function(i, idx) { i.classList.toggle('active', idx === 0); });
   document.querySelectorAll('.sort-tab').forEach(function(i, idx) { i.classList.toggle('active', idx === 0); });
-  renderFilterOptions();
-  loadProducts();
+  applyFilters();
 }
 
 function loadProducts() {
