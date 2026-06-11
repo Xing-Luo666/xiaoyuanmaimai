@@ -120,7 +120,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	// 如果有规格，减少对应规格的库存
 	if req.Spec != "" {
 		var specsJSON string
-		tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&specsJSON)
+		if err := tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&specsJSON); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询商品规格失败"})
+			return
+		}
 		if specsJSON != "" {
 			var specs []models.ProductSpec
 			json.Unmarshal([]byte(specsJSON), &specs)
@@ -142,7 +146,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 			}
 			if found {
 				newSpecsJSON, _ := json.Marshal(specs)
-				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID)
+				if _, err := tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品规格失败"})
+					return
+				}
 
 				// 检查是否所有规格库存都为0（排除无限库存 -1）
 				allSoldOut := true
@@ -153,7 +161,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 					}
 				}
 				if allSoldOut {
-					tx.Exec("UPDATE products SET status = 'sold_out' WHERE id = ?", req.ProductID)
+					if _, err := tx.Exec("UPDATE products SET status = 'sold_out' WHERE id = ?", req.ProductID); err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品状态失败"})
+						return
+					}
 				}
 			}
 		}
@@ -288,7 +300,11 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 		// 恢复规格库存 & 若商品是sold_out则改回selling
 		if o.SpecName != "" {
 			var specsJSON string
-			tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", o.ProductID).Scan(&specsJSON)
+			if err := tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", o.ProductID).Scan(&specsJSON); err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询商品规格失败"})
+				return
+			}
 			if specsJSON != "" {
 				var specs []models.ProductSpec
 				json.Unmarshal([]byte(specsJSON), &specs)
@@ -301,16 +317,19 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 					}
 				}
 				newSpecsJSON, _ := json.Marshal(specs)
-				tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), o.ProductID)
+				if _, err := tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), o.ProductID); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品规格失败"})
+					return
+				}
 			}
 		}
 		// 恢复商品为上架状态
-		tx.Exec("UPDATE products SET status = 'selling' WHERE id = ? AND status IN ('sold_out', 'sold')", o.ProductID)
-	}
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品状态失败"})
-		return
+		if _, err := tx.Exec("UPDATE products SET status = 'selling' WHERE id = ? AND status IN ('sold_out', 'sold')", o.ProductID); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品状态失败"})
+			return
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

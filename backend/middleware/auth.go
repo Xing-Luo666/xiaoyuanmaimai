@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"school-trade/models"
 	"strings"
 	"time"
@@ -10,7 +11,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var JWTSecret = []byte("school-trade-sso-secret-key-2024")
+var JWTSecret = func() []byte {
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return []byte(secret)
+	}
+	return []byte("school-trade-sso-secret-key-2024")
+}()
 
 type Claims struct {
 	UserID   string `json:"userId"`

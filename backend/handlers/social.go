@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 	"school-trade/models"
 	"school-trade/store"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,7 +35,9 @@ func (h *SocialHandler) CartList(c *gin.Context) {
 		rows.Scan(&it.ID, &it.UserID, &it.ProductID, &it.ProductTitle, &it.ProductImage, &it.SpecName, &it.Price, &it.Quantity, &it.CreatedAt)
 		items = append(items, it)
 	}
-	if items == nil { items = []models.CartItem{} }
+	if items == nil {
+		items = []models.CartItem{}
+	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: items})
 }
 
@@ -53,7 +55,9 @@ func (h *SocialHandler) CartAdd(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "参数错误"})
 		return
 	}
-	if req.Quantity <= 0 { req.Quantity = 1 }
+	if req.Quantity <= 0 {
+		req.Quantity = 1
+	}
 
 	db := h.Store.GetDB()
 	now := time.Now()
@@ -82,7 +86,7 @@ func (h *SocialHandler) CartUpdate(c *gin.Context) {
 	userID := c.GetString("userId")
 	itemID := c.Param("id")
 	var req struct {
-		Quantity int  `json:"quantity"`
+		Quantity int   `json:"quantity"`
 		Selected *bool `json:"selected"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,22 +107,22 @@ func (h *SocialHandler) CartDelete(c *gin.Context) {
 	ids, exists := c.GetQueryArray("ids")
 	if exists && len(ids) > 0 {
 		placeholders := make([]string, len(ids))
-		args := make([]interface{}, len(ids)+1)
-		args[0] = userID
-		for i, id := range ids { placeholders[i] = "?"; args[i+1] = id }
-		inClause := ""
-		for i := range ids {
-			if i > 0 { inClause += "," }
-			inClause += "?"
-		}
-		query := "DELETE FROM cart_items WHERE user_id = ? AND id IN (" + inClause + ")"
-		// manual args since we can't easily use variadic with the construct above
 		allArgs := []interface{}{userID}
-		for _, id := range ids { allArgs = append(allArgs, id) }
-		db.Exec(query, allArgs...)
+		for i, id := range ids {
+			placeholders[i] = "?"
+			allArgs = append(allArgs, id)
+		}
+		query := "DELETE FROM cart_items WHERE user_id = ? AND id IN (" + strings.Join(placeholders, ",") + ")"
+		if _, err := db.Exec(query, allArgs...); err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除失败"})
+			return
+		}
 	} else {
 		id := c.Param("id")
-		db.Exec("DELETE FROM cart_items WHERE id = ? AND user_id = ?", id, userID)
+		if _, err := db.Exec("DELETE FROM cart_items WHERE id = ? AND user_id = ?", id, userID); err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除失败"})
+			return
+		}
 	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "删除成功"})
 }
@@ -140,7 +144,9 @@ func (h *SocialHandler) FavoriteList(c *gin.Context) {
 		rows.Scan(&f.ID, &f.UserID, &f.ProductID, &f.ProductTitle, &f.ProductImage, &f.Price, &f.CreatedAt)
 		list = append(list, f)
 	}
-	if list == nil { list = []models.Favorite{} }
+	if list == nil {
+		list = []models.Favorite{}
+	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: list})
 }
 
@@ -161,7 +167,10 @@ func (h *SocialHandler) FavoriteToggle(c *gin.Context) {
 	var existID string
 	err := db.QueryRow("SELECT id FROM favorites WHERE user_id = ? AND product_id = ?", userID, req.ProductID).Scan(&existID)
 	if err == nil {
-		db.Exec("DELETE FROM favorites WHERE id = ?", existID)
+		if _, err := db.Exec("DELETE FROM favorites WHERE id = ?", existID); err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "操作失败"})
+			return
+		}
 		db.Exec("UPDATE products SET fav_count = GREATEST(fav_count - 1, 0) WHERE id = ?", req.ProductID)
 		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已取消收藏", Data: gin.H{"favorited": false}})
 		return
@@ -169,8 +178,11 @@ func (h *SocialHandler) FavoriteToggle(c *gin.Context) {
 
 	id := genID("fav")
 	now := time.Now()
-	db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		id, userID, req.ProductID, req.ProductTitle, req.ProductImage, req.Price, now)
+	if _, err := db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		id, userID, req.ProductID, req.ProductTitle, req.ProductImage, req.Price, now); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "收藏失败"})
+		return
+	}
 	db.Exec("UPDATE products SET fav_count = fav_count + 1 WHERE id = ?", req.ProductID)
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已收藏", Data: gin.H{"favorited": true}})
 }
@@ -195,15 +207,23 @@ func (h *SocialHandler) LikeToggle(c *gin.Context) {
 	productID := c.Param("id")
 
 	db := h.Store.GetDB()
-	var exist sql.NullString
-	// 简单实现：用 product 的 like_count 表示，不建表。用一条特殊记录或者直接在内存。这里简化用 redis-style，
-	// 但我们没有 redis，所以用一张简单表记录已点赞。
-	// Since we didn't create a likes table yet, let's use the product's like_count and a simple table.
-	// We'll add the table through ALTER in init. For now, just increment.
-	_ = exist
-	_ = userID
+
+	// 检查是否已点赞
+	var existID string
+	err := db.QueryRow("SELECT user_id FROM user_likes WHERE user_id = ? AND product_id = ?", userID, productID).Scan(&existID)
+	if err == nil {
+		// 已点赞，取消点赞
+		db.Exec("DELETE FROM user_likes WHERE user_id = ? AND product_id = ?", userID, productID)
+		db.Exec("UPDATE products SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?", productID)
+		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已取消点赞", Data: gin.H{"liked": false}})
+		return
+	}
+
+	// 未点赞，添加点赞
+	now := time.Now()
+	db.Exec("INSERT INTO user_likes (user_id, product_id, created_at) VALUES (?, ?, ?)", userID, productID, now)
 	db.Exec("UPDATE products SET like_count = like_count + 1 WHERE id = ?", productID)
-	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "点赞成功"})
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "点赞成功", Data: gin.H{"liked": true}})
 }
 
 // ========== 历史记录 ==========
@@ -223,7 +243,9 @@ func (h *SocialHandler) HistoryList(c *gin.Context) {
 		rows.Scan(&h.ID, &h.UserID, &h.ProductID, &h.ProductTitle, &h.ProductImage, &h.Price, &h.ViewedAt)
 		list = append(list, h)
 	}
-	if list == nil { list = []models.HistoryItem{} }
+	if list == nil {
+		list = []models.HistoryItem{}
+	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: list})
 }
 

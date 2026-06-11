@@ -245,9 +245,17 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		user.Nickname = req.Nickname
 	}
 	if req.Phone != "" {
+		if !regexp.MustCompile(`^1[3-9]\d{9}$`).MatchString(req.Phone) {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "手机号格式不正确"})
+			return
+		}
 		user.Phone = req.Phone
 	}
 	if req.Email != "" {
+		if !regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString(req.Email) {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "邮箱格式不正确"})
+			return
+		}
 		user.Email = req.Email
 	}
 	if req.Avatar != "" {

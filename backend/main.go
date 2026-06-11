@@ -251,6 +251,7 @@ func main() {
 			auth.GET("/products/my", productHandler.MyProducts)
 			auth.POST("/products", productHandler.Create)
 			auth.POST("/upload", productHandler.UploadImage)
+			auth.POST("/upload/chat-image", chatHandler.UploadChatImage)
 			auth.PUT("/products/:id", productHandler.Update)
 			auth.DELETE("/products/:id", productHandler.Delete)
 
@@ -323,6 +324,7 @@ func main() {
 	r.Static("/js", filepath.Join(frontendDir, "js"))
 	r.Static("/pages", filepath.Join(frontendDir, "pages"))
 	r.Static("/resources", filepath.Join(frontendDir, "resources"))
+	r.Static("/resources/chat", filepath.Join(frontendDir, "resources", "chat"))
 	r.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join(frontendDir, "index.html"))
 	})

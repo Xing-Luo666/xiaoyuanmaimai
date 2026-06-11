@@ -29,12 +29,19 @@ type Banner struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// 默认轮播卡片（无自定义图片时使用）
+// 默认轮播卡片SVG占位图（渐变色背景+文字）
+var defaultBannerImageURLs = []string{
+	"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233B82F6'/%3E%3Cstop offset='100%25' style='stop-color:%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='800' height='300' rx='12'/%3E%3Ctext x='400' y='140' text-anchor='middle' fill='white' font-size='32' font-family='sans-serif'%3E校园闲置交易集市%3C/text%3E%3Ctext x='400' y='180' text-anchor='middle' fill='rgba(255,255,255,0.8)' font-size='18' font-family='sans-serif'%3E学长学姐好物转让%3C/text%3E%3C/svg%3E",
+	"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%2310B981'/%3E%3Cstop offset='100%25' style='stop-color:%2306B6D4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='800' height='300' rx='12'/%3E%3Ctext x='400' y='140' text-anchor='middle' fill='white' font-size='32' font-family='sans-serif'%3E数码好物 学生价%3C/text%3E%3Ctext x='400' y='180' text-anchor='middle' fill='rgba(255,255,255,0.8)' font-size='18' font-family='sans-serif'%3E应有尽有%3C/text%3E%3C/svg%3E",
+	"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23F59E0B'/%3E%3Cstop offset='100%25' style='stop-color:%23EF4444'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='800' height='300' rx='12'/%3E%3Ctext x='400' y='140' text-anchor='middle' fill='white' font-size='32' font-family='sans-serif'%3E二手书籍 白菜价%3C/text%3E%3Ctext x='400' y='180' text-anchor='middle' fill='rgba(255,255,255,0.8)' font-size='18' font-family='sans-serif'%3E教材教辅 · 课外读物%3C/text%3E%3C/svg%3E",
+	"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%238B5CF6'/%3E%3Cstop offset='100%25' style='stop-color:%23EC4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='800' height='300' rx='12'/%3E%3Ctext x='400' y='140' text-anchor='middle' fill='white' font-size='32' font-family='sans-serif'%3E寝室好物 大甩卖%3C/text%3E%3Ctext x='400' y='180' text-anchor='middle' fill='rgba(255,255,255,0.8)' font-size='18' font-family='sans-serif'%3E台灯 · 收纳 · 生活用品%3C/text%3E%3C/svg%3E",
+}
+
 var defaultBanners = []Banner{
-	{ID: "b-default-1", Title: "🎓 校园闲置交易集市", Subtitle: "学长学姐好物转让 · 品质有保障 · 校内面交更安心", SortOrder: 0},
-	{ID: "b-default-2", Title: "📱 数码好物 学生价", Subtitle: "iPhone · iPad · 耳机 · 相机 — 应有尽有", SortOrder: 1},
-	{ID: "b-default-3", Title: "📖 二手书籍 白菜价", Subtitle: "教材教辅 · 考研资料 · 课外读物", SortOrder: 2},
-	{ID: "b-default-4", Title: "🏠 寝室好物 大甩卖", Subtitle: "台灯 · 收纳 · 小电器 · 生活用品", SortOrder: 3},
+	{ID: "b-default-1", Title: "校园闲置交易集市", Subtitle: "学长学姐好物转让 · 品质有保障 · 校内面交更安心", SortOrder: 0, ImageURL: defaultBannerImageURLs[0]},
+	{ID: "b-default-2", Title: "数码好物 学生价", Subtitle: "iPhone · iPad · 耳机 · 相机 — 应有尽有", SortOrder: 1, ImageURL: defaultBannerImageURLs[1]},
+	{ID: "b-default-3", Title: "二手书籍 白菜价", Subtitle: "教材教辅 · 考研资料 · 课外读物", SortOrder: 2, ImageURL: defaultBannerImageURLs[2]},
+	{ID: "b-default-4", Title: "寝室好物 大甩卖", Subtitle: "台灯 · 收纳 · 小电器 · 生活用品", SortOrder: 3, ImageURL: defaultBannerImageURLs[3]},
 }
 
 // GetBanners 公开接口 — 返回轮播卡片列表

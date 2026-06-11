@@ -110,7 +110,7 @@ var viewerSrc = '';     // 当前查看的图片URL
 // 加载聊天历史（分页）
 async function loadHistory(before) {
   if (!peerKey) return;
-  var url = '/chat/history-peer?peer_key=' + encodeURIComponent(peerKey);
+  var url = '/chat/peer/history?peer_key=' + encodeURIComponent(peerKey);
   if (before) url += '&before=' + encodeURIComponent(before);
   var res = await api.get(url);
   if (res.code !== 200) return;
@@ -220,7 +220,9 @@ function renderMessages() {
       var contentType = m.msgType || m.type;
       var content;
       if (contentType === 'image') {
-        content = '<img class="chat-img-thumb" src="'+escAttr(m.content)+'" data-full="'+escAttr(m.content)+'" ondblclick="openViewer(this)" alt="图片" title="双击查看大图">';
+        var src = m.content || '';
+        // 兼容旧的base64和新的URL格式，CSS限制缩略图尺寸，双击查看大图
+        content = '<img class="chat-img-thumb" src="'+escAttr(src)+'" data-full="'+escAttr(src)+'" ondblclick="openViewer(this)" alt="图片" title="双击查看大图" loading="lazy">';
       } else {
         content = escHtml(m.content||'');
       }
@@ -308,11 +310,23 @@ function sendText() {
 function sendImage(file) {
   if (!file || !ws) return;
   if (file.size > 10*1024*1024) { showToast('图片不能超过10MB', 'error'); return; }
-  var reader = new FileReader();
-  reader.onload = function() {
-    ws.send(JSON.stringify({ type: 'image', content: reader.result }));
-  };
-  reader.readAsDataURL(file);
+  // 先上传图片到服务器，拿到URL后再通过WebSocket发送
+  var formData = new FormData();
+  formData.append('image', file);
+  fetch('/api/upload/chat-image', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + api.token },
+    body: formData
+  }).then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.code === 200 && res.data && res.data.url) {
+      ws.send(JSON.stringify({ type: 'image', content: res.data.url }));
+    } else {
+      showToast(res.message || '图片上传失败', 'error');
+    }
+  }).catch(function() {
+    showToast('图片上传失败，请重试', 'error');
+  });
 }
 
 function recallMsg(msgId) { if (ws) ws.send(JSON.stringify({ type: 'recall', messageId: msgId })); }

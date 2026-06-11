@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"school-trade/middleware"
 	"school-trade/models"
 	"school-trade/store"
@@ -109,7 +112,10 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 				MessageID string `json:"messageId"`
 			}
 			json.Unmarshal(msgBytes, &recallReq)
-			result, _ := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			result, err := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			if err != nil {
+				continue
+			}
 			affected, _ := result.RowsAffected()
 			if affected > 0 {
 				var createdAt time.Time
@@ -178,7 +184,7 @@ func (h *ChatHandler) broadcast(peerKey string, senderConn *websocket.Conn, msg 
 	}
 }
 
-// ChatHistory 获取聊天记录（按 peer_key 查询，同一个用户对共用聊天记录）
+// ChatHistory 获取聊天记录（按 peer_key 查询，同一个用户对共用聊天记录，分页20条）
 func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	userID := c.GetString("userId")
 	orderID := c.Param("orderId")
@@ -193,7 +199,17 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 
 	peerKey := makePeerKey(buyerID, sellerID)
 
-	rows, err := db.Query("SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at FROM chat_messages WHERE peer_key = ? ORDER BY created_at ASC", peerKey)
+	limit := 20
+	before := c.Query("before")
+
+	var rows *sql.Rows
+	if before != "" {
+		rows, err = db.Query(`SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at 
+			FROM chat_messages WHERE peer_key = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`, peerKey, before, limit)
+	} else {
+		rows, err = db.Query(`SELECT id, order_id, sender_id, sender_name, content, type, recalled, deleted_by, created_at 
+			FROM chat_messages WHERE peer_key = ? ORDER BY created_at DESC LIMIT ?`, peerKey, limit)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -203,9 +219,7 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 	var msgs []gin.H
 	for rows.Next() {
 		var m models.ChatMessage
-		var dummyPeer string
 		rows.Scan(&m.ID, &m.OrderID, &m.SenderID, &m.SenderName, &m.Content, &m.Type, &m.Recalled, &m.DeletedBy, &m.CreatedAt)
-		_ = dummyPeer
 
 		deleted := false
 		if m.DeletedBy != "" {
@@ -221,16 +235,18 @@ func (h *ChatHandler) ChatHistory(c *gin.Context) {
 		}
 
 		if m.Recalled {
-			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": "[消息已撤回]", "type": "text", "recalled": true, "createdAt": m.CreatedAt})
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": "[消息已撤回]", "type": "text", "msgType": "text", "recalled": true, "createdAt": m.CreatedAt})
 		} else {
-			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": m.Content, "type": m.Type, "recalled": false, "createdAt": m.CreatedAt})
+			msgs = append(msgs, gin.H{"id": m.ID, "orderId": m.OrderID, "senderId": m.SenderID, "senderName": m.SenderName, "content": m.Content, "type": m.Type, "msgType": m.Type, "recalled": false, "createdAt": m.CreatedAt})
 		}
 	}
 	if msgs == nil {
 		msgs = []gin.H{}
 	}
 
-	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: msgs})
+	hasMore := len(msgs) >= limit
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"messages": msgs, "hasMore": hasMore}})
 }
 
 // ChatList 获取当前用户的所有对话列表（类似QQ）
@@ -549,7 +565,9 @@ func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 	defer rows.Close()
 
 	var msgs []gin.H
+	rawCount := 0
 	for rows.Next() {
+		rawCount++
 		var m models.ChatMessage
 		rows.Scan(&m.ID, &m.OrderID, &m.SenderID, &m.SenderName, &m.Content, &m.Type, &m.Recalled, &m.DeletedBy, &m.CreatedAt)
 
@@ -576,7 +594,7 @@ func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 		msgs = []gin.H{}
 	}
 
-	hasMore := len(msgs) >= limit
+	hasMore := rawCount >= limit
 
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"messages": msgs, "hasMore": hasMore}})
 }
@@ -646,7 +664,10 @@ func (h *ChatHandler) ChatWSPeer(c *gin.Context) {
 				MessageID string `json:"messageId"`
 			}
 			json.Unmarshal(msgBytes, &recallReq)
-			result, _ := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			result, err := db.Exec("UPDATE chat_messages SET recalled = 1 WHERE id = ? AND sender_id = ? AND created_at > ?", recallReq.MessageID, userID, time.Now().Add(-3*time.Minute))
+			if err != nil {
+				continue
+			}
 			affected, _ := result.RowsAffected()
 			if affected > 0 {
 				var createdAt time.Time
@@ -706,6 +727,53 @@ func (h *ChatHandler) ChatWSPeer(c *gin.Context) {
 		})
 		h.broadcast(peerKey, conn, broadcastMsg)
 	}
+}
+
+// UploadChatImage 上传聊天图片，保存到 resources/chat/ 目录
+func (h *ChatHandler) UploadChatImage(c *gin.Context) {
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "请选择图片文件"})
+		return
+	}
+	defer file.Close()
+
+	if header.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "图片大小不能超过 10MB"})
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true, ".bmp": true}
+	if !allowedExts[ext] {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "不支持的图片格式，仅支持 jpg/png/gif/webp/bmp"})
+		return
+	}
+
+	execDir, _ := os.Getwd()
+	uploadDir := filepath.Join(execDir, "..", "frontend", "resources", "chat")
+	if _, err := os.Stat(filepath.Join(execDir, "frontend")); err == nil {
+		uploadDir = filepath.Join(execDir, "frontend", "resources", "chat")
+	}
+	os.MkdirAll(uploadDir, 0755)
+
+	fileName := fmt.Sprintf("chat_%d%s", time.Now().UnixNano(), ext)
+	savePath := filepath.Join(uploadDir, fileName)
+
+	dst, err := os.Create(savePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "保存图片失败"})
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "写入图片失败"})
+		return
+	}
+
+	imageURL := "/resources/chat/" + fileName
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "上传成功", Data: gin.H{"url": imageURL}})
 }
 
 // InitChat 发起聊天 — 创建或获取与卖家的 peer 对话（无需订单）

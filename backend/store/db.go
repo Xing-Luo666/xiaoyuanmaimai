@@ -303,6 +303,13 @@ func (s *DBStore) initTables() error {
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS user_likes (
+			user_id VARCHAR(64) NOT NULL,
+			product_id VARCHAR(64) NOT NULL,
+			created_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, product_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, ddl := range tables {

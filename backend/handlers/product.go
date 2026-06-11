@@ -103,8 +103,9 @@ func (h *ProductHandler) Get(c *gin.Context) {
 		return
 	}
 
-	db.Exec("UPDATE products SET view_count = view_count + 1 WHERE id = ?", id)
-	p.ViewCount++
+	if _, err := db.Exec("UPDATE products SET view_count = view_count + 1 WHERE id = ?", id); err == nil {
+		p.ViewCount++
+	}
 
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "成功", Data: p})
 }
@@ -242,6 +243,11 @@ func (h *ProductHandler) Update(c *gin.Context) {
 		p.Building = req.Building
 	}
 	if req.Status != "" {
+		validStatuses := map[string]bool{"selling": true, "sold_out": true, "reserved": true, "hidden": true}
+		if !validStatuses[req.Status] {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "无效的商品状态"})
+			return
+		}
 		p.Status = req.Status
 	}
 	p.UpdatedAt = now
