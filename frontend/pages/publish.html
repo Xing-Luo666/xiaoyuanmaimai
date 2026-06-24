@@ -72,6 +72,9 @@
 
 <script src="../js/api.js"></script>
 <script>
+var editingProductId = null;
+var uploadedImages = [];
+
 (function() {
   api.verifyAndInit().then(function(ok) {
     if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
@@ -84,6 +87,9 @@
         '<a href="profile.html">个人中心</a>' +
         '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
     }
+    // 检查是否为编辑模式
+    var editId = new URLSearchParams(location.search).get('id');
+    if (editId) { editingProductId = editId; loadProductForEdit(editId); }
   });
 
   CATEGORIES.forEach(function(c) { var opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; document.getElementById('category').appendChild(opt); });
@@ -151,7 +157,6 @@
     return specs;
   }
 
-  var uploadedImages = [];
   var uploading = false;
 
   var uploadArea = document.getElementById('uploadArea');
@@ -260,18 +265,72 @@
       campus: document.getElementById('campus').value,
       building: document.getElementById('building').value
     };
-    api.post('/products', data).then(function(res) {
-      btn.disabled = false;
-      document.getElementById('btnText').textContent = '发布商品';
-      if (res.code === 200) {
-        showToast('发布成功！');
-        setTimeout(function(){ location.href = 'product-detail.html?id=' + res.data.id; }, 800);
-      } else {
-        showToast(res.message || '发布失败', 'error');
-      }
-    });
+    if (editingProductId) {
+      // 编辑模式：PUT更新
+      api.put('/products/' + editingProductId, data).then(function(res) {
+        btn.disabled = false;
+        document.getElementById('btnText').textContent = '保存修改';
+        if (res.code === 200) {
+          showToast('修改成功！');
+          setTimeout(function(){ location.href = 'product-detail.html?id=' + editingProductId; }, 800);
+        } else {
+          showToast(res.message || '修改失败', 'error');
+        }
+      });
+    } else {
+      api.post('/products', data).then(function(res) {
+        btn.disabled = false;
+        document.getElementById('btnText').textContent = '发布商品';
+        if (res.code === 200) {
+          showToast('发布成功！');
+          setTimeout(function(){ location.href = 'product-detail.html?id=' + res.data.id; }, 800);
+        } else {
+          showToast(res.message || '发布失败', 'error');
+        }
+      });
+    }
   });
 })();
+
+async function loadProductForEdit(id) {
+  var res = await api.get('/products/' + id);
+  if (res.code !== 200) { showToast('加载商品失败', 'error'); return; }
+  var p = res.data;
+  document.getElementById('title').value = p.title || '';
+  document.getElementById('description').value = p.description || '';
+  document.getElementById('category').value = p.category || '';
+  document.getElementById('condition').value = p.condition || '';
+  document.getElementById('campus').value = p.campus || '';
+  document.getElementById('building').value = p.building || '';
+  // 加载图片
+  uploadedImages = p.images || [];
+  renderPreviewsEdit();
+  // 加载规格
+  if (p.specs && p.specs.length) {
+    document.getElementById('specsEmpty').style.display = 'none';
+    p.specs.forEach(function(s) {
+      addSpec();
+      var rows = document.querySelectorAll('.spec-row');
+      var lastRow = rows[rows.length - 1];
+      lastRow.querySelector('input[placeholder="规格名（如：红色128G）"]').value = s.name || '';
+      lastRow.querySelector('input[placeholder="原价"]').value = s.oriPrice || 0;
+      lastRow.querySelector('input[placeholder="现价"]').value = s.price || 0;
+      lastRow.querySelector('.spec-stock').value = s.stock === -1 ? 1 : (s.stock || 1);
+      if (s.stock === -1) {
+        lastRow.querySelector('.spec-infinite').checked = true;
+        lastRow.querySelector('.spec-stock').disabled = true;
+      }
+    });
+  }
+  document.getElementById('btnText').textContent = '保存修改';
+}
+
+function renderPreviewsEdit() {
+  var container = document.getElementById('previewList');
+  container.innerHTML = uploadedImages.map(function(url, i) {
+    return '<div class="preview-item"><img src="' + url + '" alt="preview"><button class="remove-btn" onclick="removeImage(' + i + ')" type="button">&times;</button></div>';
+  });
+}
 
 function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>

@@ -90,30 +90,34 @@ async function loadOrders(role) {
     var textColor = o.status==='completed'?'#16A34A':o.status==='rejected'?'#EF4444':o.status==='cancelled'?'#6B7280':'#D97706';
 
     var footerHTML = '';
+    var footerBtns = [];
     // 卖家: 接受/拒绝
     if (o.status === 'pending' && role === 'seller') {
-      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'accepted\')">接受</button><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'rejected\')">拒绝</button></div>';
+      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'accepted\')">接受</button>');
+      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'rejected\')">拒绝</button>');
     }
-    // 卖家: 已发货
+    // 卖家: 标记已发货
     if (o.status === 'accepted' && role === 'seller') {
-      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'shipped\')">标记已发货</button></div>';
+      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'shipped\')">标记已发货</button>');
     }
     // 买家: 确认收货
     if (o.status === 'shipped' && role === 'buyer') {
-      footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'completed\')">确认收货</button></div>';
+      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'completed\')">确认收货</button>');
+    }
+    // 买家: 取消订单 (pending 或 accepted)
+    if ((o.status === 'pending' || o.status === 'accepted') && role === 'buyer') {
+      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消订单</button>');
+    }
+    // 卖家: 取消售卖 (pending)
+    if (o.status === 'pending' && role === 'seller') {
+      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消售卖</button>');
     }
     // 已完成: 评价入口
     if (o.status === 'completed') {
       footerHTML = '<div class="order-card-footer" id="reviewBtns_' + o.id + '"><span style="color:#9ca3af;font-size:12px" id="reviewStatus_' + o.id + '">加载中...</span></div>';
       checkReviewStatus(o.id);
-    }
-    // 买家: 取消订单 (pending 或 accepted)
-    if ((o.status === 'pending' || o.status === 'accepted') && role === 'buyer') {
-      footerHTML += '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消订单</button></div>';
-    }
-    // 卖家: 取消售卖
-    if (o.status === 'pending' && role === 'seller') {
-      footerHTML += '<div class="order-card-footer"><button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消售卖</button></div>';
+    } else if (footerBtns.length > 0) {
+      footerHTML = '<div class="order-card-footer">' + footerBtns.join('') + '</div>';
     }
 
     return '<div class="order-card">' +

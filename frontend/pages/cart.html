@@ -76,8 +76,10 @@ async function loadCart() {
 function renderCart() {
   var html = '';
   var totalPrice = 0;
+  var allChecked = cartItems.length > 0;
   cartItems.forEach(function(item, i) {
     var checked = selectedIds[item.id] ? 'checked' : '';
+    if (!checked) allChecked = false;
     if (checked) totalPrice += item.price * item.quantity;
     html += '<div class="cart-item">' +
       '<input type="checkbox" '+checked+' onchange="toggleSelect(\''+item.id+'\')" style="width:18px;height:18px">' +
@@ -89,7 +91,7 @@ function renderCart() {
   });
 
   var summary = '<div class="summary"><div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div><span>已选: '+Object.keys(selectedIds).length+' 件</span><div class="total">合计: ¥'+totalPrice.toFixed(2)+'</div></div>' +
+    '<div style="display:flex;align-items:center;gap:12px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(allChecked?'checked':'')+' onchange="toggleSelectAll(this)" style="width:18px;height:18px">全选</label><span>已选: '+Object.keys(selectedIds).length+' 件</span><div class="total">合计: ¥'+totalPrice.toFixed(2)+'</div></div>' +
     '<div style="display:flex;gap:8px">' +
     '<button class="btn btn-outline" onclick="batchDelete()">批量删除选中</button>' +
     '<button class="btn btn-primary" onclick="batchBuy()">一键购买</button>' +
@@ -97,6 +99,15 @@ function renderCart() {
 
   document.getElementById('content').innerHTML =
     '<div class="publish-card"><h2>购物清单</h2>'+html+'</div>'+summary;
+}
+
+function toggleSelectAll(checkbox) {
+  if (checkbox.checked) {
+    cartItems.forEach(function(item) { selectedIds[item.id] = true; });
+  } else {
+    selectedIds = {};
+  }
+  renderCart();
 }
 
 function toggleSelect(id) {
@@ -154,6 +165,20 @@ function showAddressModal(addresses, ids) {
 
   html += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+  if (!selectedAddressId && addresses.length > 0) {
+    var def = addresses.find(function(a){return a.isDefault;});
+    if (def) {
+      selectedAddressId = def.id;
+    } else {
+      selectedAddressId = addresses[0].id;
+      var firstOption = document.querySelector('.addr-option');
+      if (firstOption) {
+        firstOption.classList.add('selected');
+        var radio = firstOption.querySelector('input[type=radio]');
+        if (radio) radio.checked = true;
+      }
+    }
+  }
 }
 
 function selectAddrOption(el, id) {

@@ -99,9 +99,39 @@ function loadMyProducts() {
     var el = document.getElementById('myProdList');
     if (res.code !== 200 || !res.data.list || !res.data.list.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>还没有发布商品</p><br><a href="publish.html" class="mall-btn mall-btn-primary">立即发布</a></div>'; return; }
     el.innerHTML = res.data.list.map(function(p) {
-      return '<div class="order-item" onclick="location.href=\'product-detail.html?id=' + p.id + '\'"><div class="order-item-img"><img src="' + (p.images && p.images[0] ? p.images[0] : 'https://picsum.photos/seed/mp' + p.id + '/64/64') + '" alt="" onerror="this.src=\'https://picsum.photos/seed/fb' + p.id + '/64/64\'"></div><div class="order-item-info"><div class="order-item-title">' + escHtml(p.title) + '</div><div class="order-item-meta">' + getCategoryLabel(p.category) + ' · ' + getCampusLabel(p.campus) + ' · ' + formatDate(p.createdAt) + '</div></div><div><div class="order-item-price">¥' + p.price + '</div><span class="order-status-badge" style="background:' + (p.status === 'selling' ? '#DCFCE7' : '#F1F5F9') + ';color:' + (p.status === 'selling' ? '#16A34A' : '#64748B') + '">' + (p.status === 'selling' ? '在售' : p.status) + '</span></div></div>';
+      var statusLabel = p.status === 'selling' ? '在售' : p.status === 'sold_out' ? '已售罄' : p.status === 'reserved' ? '已预留' : p.status === 'hidden' ? '已下架' : p.status;
+      var statusBg = p.status === 'selling' ? '#DCFCE7' : '#F1F5F9';
+      var statusColor = p.status === 'selling' ? '#16A34A' : '#64748B';
+      var manageBtns = '';
+      if (p.status === 'selling') {
+        manageBtns = '<button class="mall-btn mall-btn-sm" onclick="event.stopPropagation();toggleProductStatus(\'' + p.id + '\',\'hidden\')">下架</button> ';
+      } else if (p.status === 'hidden') {
+        manageBtns = '<button class="mall-btn mall-btn-sm mall-btn-primary" onclick="event.stopPropagation();toggleProductStatus(\'' + p.id + '\',\'selling\')">上架</button> ';
+      }
+      manageBtns += '<button class="mall-btn mall-btn-sm" onclick="event.stopPropagation();editProduct(\'' + p.id + '\')">编辑</button> ';
+      manageBtns += '<button class="mall-btn mall-btn-sm mall-btn-danger" onclick="event.stopPropagation();deleteProduct(\'' + p.id + '\')">删除</button>';
+      return '<div class="order-item" onclick="location.href=\'product-detail.html?id=' + p.id + '\'"><div class="order-item-img"><img src="' + (p.images && p.images[0] ? p.images[0] : '/resources/default-product.gif') + '" alt="" onerror="this.src=\'/resources/default-product.gif\'"></div><div class="order-item-info"><div class="order-item-title">' + escHtml(p.title) + '</div><div class="order-item-meta">' + getCategoryLabel(p.category) + ' · ' + getCampusLabel(p.campus) + ' · ' + formatDate(p.createdAt) + '</div></div><div style="text-align:right"><div class="order-item-price">¥' + p.price + '</div><span class="order-status-badge" style="background:' + statusBg + ';color:' + statusColor + '">' + statusLabel + '</span><div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">' + manageBtns + '</div></div></div>';
     }).join('');
   }).catch(function() {});
+}
+
+function toggleProductStatus(productId, status) {
+  api.put('/products/' + productId, { status: status }).then(function(res) {
+    if (res.code === 200) { showToast(status === 'hidden' ? '已下架' : '已上架'); loadMyProducts(); }
+    else { showToast(res.message || '操作失败', 'error'); }
+  });
+}
+
+function editProduct(productId) {
+  location.href = 'publish.html?id=' + productId;
+}
+
+function deleteProduct(productId) {
+  if (!confirm('确定删除该商品吗？删除后不可恢复')) return;
+  api.delete('/products/' + productId).then(function(res) {
+    if (res.code === 200) { showToast('已删除'); loadMyProducts(); }
+    else { showToast(res.message || '删除失败', 'error'); }
+  });
 }
 
 function loadOrders(role, containerId) {
@@ -355,6 +385,20 @@ function showCartAddrModal(addresses, ids, items) {
   }
   html += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+  if (!_cartAddrId && addresses.length > 0) {
+    var def = addresses.find(function(a){return a.isDefault;});
+    if (def) {
+      _cartAddrId = def.id;
+    } else {
+      _cartAddrId = addresses[0].id;
+      var firstOption = document.querySelector('.addr-option');
+      if (firstOption) {
+        firstOption.classList.add('selected');
+        var radio = firstOption.querySelector('input[type=radio]');
+        if (radio) radio.checked = true;
+      }
+    }
+  }
 }
 function selectCartAddr(el, id) { _cartAddrId = id; document.querySelectorAll('.addr-option').forEach(function(o){o.classList.remove('selected');}); el.classList.add('selected'); }
 function closeAddrModal() { var o = document.getElementById('addrModalOverlay'); if (o) o.remove(); }

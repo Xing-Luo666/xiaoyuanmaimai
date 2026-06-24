@@ -34,6 +34,19 @@
 .addr-quick-form .form-row { display:flex; gap:8px; margin-bottom:8px }
 .addr-quick-form .form-row input, .addr-quick-form .form-row select { flex:1; padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px }
 .addr-modal-actions { display:flex; gap:8px; margin-top:16px; justify-content:flex-end }
+.img-gallery .img-thumbs { display:flex; gap:8px; margin-top:8px; overflow-x:auto }
+.img-gallery .img-thumb { width:60px; height:60px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid transparent; transition:all .2s }
+.img-gallery .img-thumb:hover { border-color:#93c5fd }
+.img-gallery .img-thumb.active { border-color:#2563eb }
+.seller-products { margin-top:16px }
+.seller-products h3 { font-size:16px; margin-bottom:12px; color:#1f2937 }
+.seller-products .sp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px }
+.seller-products .sp-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; cursor:pointer; transition:all .2s }
+.seller-products .sp-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.08); transform:translateY(-2px) }
+.seller-products .sp-card img { width:100%; height:100px; object-fit:cover }
+.seller-products .sp-card .sp-info { padding:8px }
+.seller-products .sp-card .sp-title { font-size:12px; color:#374151; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.seller-products .sp-card .sp-price { font-size:14px; color:#ef4444; font-weight:600; margin-top:4px }
 </style>
 </head>
 <body>
@@ -139,9 +152,21 @@ function renderDetail() {
     actionHTML += '<button class="btn-contact-seller" onclick="contactSeller(\''+p.sellerId+'\',\''+escHtmlAttr(p.sellerName||'')+'\')">💬 联系卖家</button>';
   }
 
+  // 多图轮播HTML
+  var galleryHTML = '';
+  if (imgs.length === 1) {
+    galleryHTML = '<img src="'+imgs[0]+'" style="width:100%;border-radius:12px" alt="'+escHtml(p.title)+'">';
+  } else {
+    galleryHTML = '<div class="img-gallery">' +
+      '<img src="'+imgs[0]+'" id="mainImg" style="width:100%;border-radius:12px;cursor:pointer" alt="'+escHtml(p.title)+'">' +
+      '<div class="img-thumbs">' + imgs.map(function(src, i) {
+        return '<img src="'+src+'" class="img-thumb'+(i===0?' active':'')+'" onclick="switchImg(this,\''+src+'\')" data-idx="'+i+'">';
+      }).join('') + '</div></div>';
+  }
+
   document.getElementById('detailContent').innerHTML =
     '<div class="publish-card" style="display:flex;gap:24px;flex-wrap:wrap">' +
-    '<div style="flex:1;min-width:280px"><img src="'+(imgs[0]||'')+'" style="width:100%;border-radius:12px" alt="'+escHtml(p.title)+'"></div>' +
+    '<div style="flex:1;min-width:280px">'+galleryHTML+'</div>' +
     '<div style="flex:1;min-width:280px">' +
     '<h2 style="margin-bottom:8px">'+escHtml(p.title)+'</h2>' +
     '<div style="font-size:28px;color:#ef4444;font-weight:700;margin:8px 0">¥'+displayPrice.toFixed(2)+' '+(p.oriPrice>displayPrice?'<span style="font-size:16px;color:#9ca3af;text-decoration:line-through">¥'+p.oriPrice.toFixed(2)+'</span>':'')+'</div>' +
@@ -151,7 +176,10 @@ function renderDetail() {
     '<div style="margin:16px 0;line-height:1.6;color:#374151">'+escHtml(p.description||'暂无描述')+'</div>' +
     '<div style="background:#f9fafb;border-radius:8px;padding:12px;margin:12px 0"><div style="font-weight:600">卖家: '+escHtml(p.sellerName)+'</div></div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">'+actionHTML+'</div>' +
-    '</div></div>';
+    '</div></div>' +
+    '<div id="sellerProducts" style="margin-top:24px"></div>';
+  // 加载卖家其他商品
+  loadSellerProducts(p.sellerId, p.id);
 }
 
 function selectSpec(sid) {
@@ -160,6 +188,34 @@ function selectSpec(sid) {
   selectedSpec = spec;
   quantity = 1;
   renderDetail();
+}
+
+function switchImg(thumbEl, src) {
+  var mainImg = document.getElementById('mainImg');
+  if (mainImg) mainImg.src = src;
+  document.querySelectorAll('.img-thumb').forEach(function(t){ t.classList.remove('active'); });
+  thumbEl.classList.add('active');
+}
+
+async function loadSellerProducts(sellerId, currentId) {
+  var container = document.getElementById('sellerProducts');
+  if (!container) return;
+  try {
+    var res = await api.get('/products', { sellerId: sellerId, status: 'selling', pageSize: 6 });
+    if (res.code !== 200 || !res.data || !res.data.list) { container.innerHTML = ''; return; }
+    var others = res.data.list.filter(function(p){ return p.id !== currentId; }).slice(0, 4);
+    if (others.length === 0) { container.innerHTML = ''; return; }
+    var html = '<div class="seller-products"><h3>卖家其他商品</h3><div class="sp-grid">';
+    others.forEach(function(p) {
+      var img = (p.images && p.images.length) ? p.images[0] : '/resources/default-product.gif';
+      html += '<div class="sp-card" onclick="location.href=\'product-detail.html?id='+p.id+'\'">' +
+        '<img src="'+img+'" alt="'+escHtml(p.title)+'">' +
+        '<div class="sp-info"><div class="sp-title">'+escHtml(p.title)+'</div>' +
+        '<div class="sp-price">¥'+Number(p.price).toFixed(2)+'</div></div></div>';
+    });
+    html += '</div></div>';
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = ''; }
 }
 
 function changeQty(delta) {
@@ -207,7 +263,18 @@ function showAddressModal(addresses) {
   document.body.insertAdjacentHTML('beforeend', html);
   if (!selectedAddressId && addresses.length > 0) {
     var def = addresses.find(function(a){return a.isDefault;});
-    if (def) selectedAddressId = def.id;
+    if (def) {
+      selectedAddressId = def.id;
+    } else {
+      // 没有默认地址时，自动选中第一个
+      selectedAddressId = addresses[0].id;
+      var firstOption = document.querySelector('.addr-option');
+      if (firstOption) {
+        firstOption.classList.add('selected');
+        var radio = firstOption.querySelector('input[type=radio]');
+        if (radio) radio.checked = true;
+      }
+    }
   }
 }
 

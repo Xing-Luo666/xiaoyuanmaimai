@@ -30,6 +30,7 @@ func (h *ProductHandler) List(c *gin.Context) {
 	keyword := c.Query("keyword")
 	category := c.Query("category")
 	campus := c.Query("campus")
+	sellerID := c.Query("sellerId")
 	sortBy := c.DefaultQuery("sortBy", "newest")
 	status := c.DefaultQuery("status", "selling")
 
@@ -52,6 +53,10 @@ func (h *ProductHandler) List(c *gin.Context) {
 	if campus != "" && campus != "all" {
 		query += " AND campus = ?"
 		args = append(args, campus)
+	}
+	if sellerID != "" {
+		query += " AND seller_id = ?"
+		args = append(args, sellerID)
 	}
 
 	switch sortBy {
