@@ -8,41 +8,7 @@
 </head>
 <body>
 
-<div class="top-nav">
-  <div class="top-nav-inner">
-    <span>欢迎来到校园二手交易平台！</span>
-    <div id="topNavRight">
-      <a href="login.html">请登录</a>
-      <a href="register.html">免费注册</a>
-    </div>
-  </div>
-</div>
-
-<header class="main-header" style="box-shadow:none;border-bottom:1px solid #e5e7eb">
-  <div class="header-inner">
-    <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer">
-      <div class="logo-icon">📚</div>
-      <div>
-        <div class="logo-text">校园二手</div>
-        <div class="logo-sub">闲置交易平台</div>
-      </div>
-    </div>
-    <a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a>
-  </div>
-</header>
-
-<nav class="cat-nav">
-  <div class="cat-nav-inner">
-    <div class="cat-nav-item active" onclick="setCategory('all')">全部</div>
-    <div class="cat-nav-item" onclick="setCategory('electronics')">📱 数码</div>
-    <div class="cat-nav-item" onclick="setCategory('books')">📖 书籍</div>
-    <div class="cat-nav-item" onclick="setCategory('furniture')">🏠 家居</div>
-    <div class="cat-nav-item" onclick="setCategory('sports')">⚽ 运动</div>
-    <div class="cat-nav-item" onclick="setCategory('entertainment')">🎮 娱乐</div>
-    <div class="cat-nav-item" onclick="setCategory('clothing')">👗 服饰</div>
-    <div class="cat-nav-item" onclick="setCategory('beauty')">💄 美妆</div>
-  </div>
-</nav>
+<div id="siteHeaderPlaceholder"></div>
 
 <div class="products-wrap">
   <aside class="filter-sidebar" id="filterSidebar">
@@ -69,6 +35,7 @@
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/header.js"></script>
 <script>
 var currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'newest' };
 
@@ -81,18 +48,8 @@ var currentFilters = { category: 'all', campus: 'all', keyword: '', sortBy: 'new
   highlightCatNav();
   highlightSortTab();
   loadProducts();
-  api.verifyAndInit().then(function(ok) { if (ok) updateNav(); });
+  SiteHeader.render();
 })();
-
-function updateNav() {
-  var user = api.getUser();
-  if (!user) return;
-  document.getElementById('topNavRight').innerHTML =
-    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-    '<a href="orders.html">我的订单</a>' +
-    '<a href="profile.html">个人中心</a>' +
-    '<a href="../index.html" onclick="api.logout()">退出</a>';
-}
 
 function renderFilterOptions() {
   document.getElementById('catFilters').innerHTML = [{value:'all',label:'全部'}].concat(CATEGORIES).map(function(c) {

@@ -45,13 +45,10 @@
 </style>
 </head>
 <body>
-<div class="nav-sticky-wrap">
-  <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="chat-list.html" class="header-back" id="headerBackLink"><span class="arrow">←</span> 返回消息</a></div></header>
-</div>
+<div id="siteHeaderPlaceholder"></div>
 <div class="chat-wrap">
   <div class="chat-inner-header">
-    <a href="chat-list.html" class="back-btn" title="返回消息列表">←</a>
+    <a href="chat-list.html" class="back-btn" id="chatBackBtn" title="返回消息列表">←</a>
     <div><b id="chatTitle">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
   </div>
   <div class="chat-msgs" id="chatMsgs">
@@ -86,6 +83,7 @@
 <div class="drag-overlay" id="dragOverlay"><div class="drag-overlay-inner"><div class="icon">📷</div><div class="text">释放以发送图片</div><div style="color:#6b7280;font-size:13px;margin-top:6px">支持 jpg/png/gif/webp，单张 ≤10MB</div></div></div>
 
 <script src="../js/api.js"></script>
+<script src="../js/header.js"></script>
 <script>
 var userId, ws, peerKey, peerName;
 var messages = [];      // 当前显示的消息列表
@@ -99,7 +97,7 @@ var viewerSrc = '';     // 当前查看的图片URL
     if (!ok) { location.href = 'login.html?redirect=' + encodeURIComponent(location.href); return; }
     var user = api.getUser();
     userId = user.userId;
-    updateNav();
+    SiteHeader.render();
 
     var params = new URLSearchParams(location.search);
     var orderId = params.get('orderId');
@@ -111,9 +109,14 @@ var viewerSrc = '';     // 当前查看的图片URL
     // 根据来源设置返回链接
     var from = params.get('from');
     var productId = params.get('id');
+    var backBtn = document.getElementById('chatBackBtn');
     if (from === 'detail' && productId) {
-      document.getElementById('headerBackLink').href = 'product-detail.html?id=' + encodeURIComponent(productId);
-      document.getElementById('headerBackLink').innerHTML = '<span class="arrow">←</span> 返回商品详情';
+      backBtn.href = 'product-detail.html?id=' + encodeURIComponent(productId);
+    } else if (from === 'list') {
+      // 从消息列表进入，用 history.back() 避免历史栈堆积导致循环
+      backBtn.removeAttribute('href');
+      backBtn.style.cursor = 'pointer';
+      backBtn.onclick = function() { if (history.length > 1) history.back(); else location.href = 'chat-list.html'; };
     }
 
     document.getElementById('chatTitle').textContent = peerName;
@@ -387,17 +390,6 @@ function sendImage(file) {
 
 function recallMsg(msgId) { if (ws) ws.send(JSON.stringify({ type: 'recall', messageId: msgId })); }
 function deleteMsg(msgId) { if (ws) ws.send(JSON.stringify({ type: 'delete', messageId: msgId })); }
-
-function updateNav() {
-  var user = api.getUser();
-  if (!user) return;
-  document.getElementById('topNavRight').innerHTML =
-    '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-    '<a href="../index.html">首页</a>' +
-    '<a href="orders.html">我的订单</a>' +
-    '<a href="profile.html">个人中心</a>' +
-    '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
-}
 
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 function escAttr(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }

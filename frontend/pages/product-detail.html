@@ -51,15 +51,13 @@
 </head>
 <body>
 
-<div class="nav-sticky-wrap">
-  <div class="top-nav"><div class="top-nav-inner"><span>欢迎来到校园二手交易平台！</span><div id="topNavRight"><a href="login.html">请登录</a><a href="register.html">免费注册</a></div></div></div>
-  <header class="main-header subpage"><div class="header-inner"><div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer"><div class="logo-icon">📚</div><div><div class="logo-text">校园二手</div><div class="logo-sub">闲置交易平台</div></div></div><a href="products.html" class="header-back"><span class="arrow">←</span> 返回商品广场</a></div></header>
-</div>
+<div id="siteHeaderPlaceholder"></div>
     <div class="publish-wrap" style="margin-top:16px">
   <div id="detailContent" style="text-align:center;padding:80px;"><p>⏳ 加载中...</p></div>
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/header.js"></script>
 <script>
 var currentProduct = null;
 var selectedSpec = null;
@@ -68,7 +66,7 @@ var isFavorited = false;
 
 (async function() {
   await api.verifyAndInit();
-  updateNav();
+  SiteHeader.render();
   var id = new URLSearchParams(location.search).get('id');
   if (!id) { showError('参数错误'); return; }
 
@@ -89,19 +87,6 @@ var isFavorited = false;
 
   renderDetail();
 })();
-
-function updateNav() {
-  var user = api.getUser();
-  if (!user) return;
-  var el = document.getElementById('topNavRight');
-  if (el) {
-    el.innerHTML = '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-      '<a href="../index.html">首页</a>' +
-      '<a href="orders.html">我的订单</a>' +
-      '<a href="profile.html">个人中心</a>' +
-      '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
-  }
-}
 
 function showError(msg) {
   document.getElementById('detailContent').innerHTML = '<div style="text-align:center;padding:80px"><p style="font-size:48px">⚠️</p><p>'+msg+'</p></div>';

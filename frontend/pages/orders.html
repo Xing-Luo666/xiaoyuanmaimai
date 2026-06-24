@@ -19,29 +19,7 @@
 </head>
 <body>
 
-<div class="nav-sticky-wrap">
-  <div class="top-nav">
-    <div class="top-nav-inner">
-      <span>欢迎来到校园二手交易平台！</span>
-      <div id="topNavRight">
-        <a href="login.html">请登录</a>
-        <a href="register.html">免费注册</a>
-      </div>
-    </div>
-  </div>
-  <header class="main-header subpage">
-    <div class="header-inner">
-      <div class="logo-area" onclick="location.href='../index.html'" style="cursor:pointer">
-        <div class="logo-icon">📚</div>
-        <div>
-          <div class="logo-text">校园二手</div>
-          <div class="logo-sub">闲置交易平台</div>
-        </div>
-      </div>
-      <a href="../index.html" class="header-back"><span class="arrow">←</span> 返回首页</a>
-    </div>
-  </header>
-</div>
+<div id="siteHeaderPlaceholder"></div>
 
 <div class="orders-wrap">
   <div class="orders-tabs">
@@ -52,19 +30,13 @@
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/header.js"></script>
 <script>
 var currentRole = 'buyer';
 
 (async function() {
   if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
-  var user = api.getUser();
-  if (user) {
-    document.getElementById('topNavRight').innerHTML =
-      '<span>Hi, <b>' + escHtml(user.username) + '</b></span>' +
-      '<a href="../index.html">首页</a>' +
-      '<a href="profile.html">个人中心</a>' +
-      '<a href="javascript:void(0)" onclick="api.logout()">退出</a>';
-  }
+  SiteHeader.render();
   loadOrders('buyer');
 })();
 
