@@ -175,7 +175,7 @@ function showQuickAddrForm() {
 function renderQuickAddrForm() {
   return '<div class="addr-quick-form">' +
     '<div class="form-row"><input type="text" id="addrPhone" placeholder="手机号"></div>' +
-    '<div class="form-row"><input type="text" id="addrCampus" placeholder="校区名称"></div>' +
+    '<div class="form-row"><select id="addrCampus">' + CAMPUSES.map(function(c){return '<option value="'+c.value+'">'+c.label+'</option>'}).join('') + '</select></div>' +
     '<div class="form-row"><input type="text" id="addrBuilding" placeholder="楼栋（如: 5号楼）"><input type="text" id="addrDorm" placeholder="宿舍号（如: 302）"></div>' +
     '</div>';
 }
@@ -187,7 +187,7 @@ async function doBatchBuy(idsStr) {
   if (phoneEl && phoneEl.value.trim()) {
     var data = {
       phone: phoneEl.value.trim(),
-      campus: document.getElementById('addrCampus') ? document.getElementById('addrCampus').value.trim() : '',
+      campus: document.getElementById('addrCampus') ? document.getElementById('addrCampus').value : '',
       building: document.getElementById('addrBuilding') ? document.getElementById('addrBuilding').value.trim() : '',
       dormNumber: document.getElementById('addrDorm') ? document.getElementById('addrDorm').value.trim() : ''
     };

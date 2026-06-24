@@ -313,32 +313,6 @@ func (h *SocialHandler) FavoriteCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: result})
 }
 
-// ========== 点赞 ==========
-
-func (h *SocialHandler) LikeToggle(c *gin.Context) {
-	userID := c.GetString("userId")
-	productID := c.Param("id")
-
-	db := h.Store.GetDB()
-
-	// 检查是否已点赞
-	var existID string
-	err := db.QueryRow("SELECT user_id FROM user_likes WHERE user_id = ? AND product_id = ?", userID, productID).Scan(&existID)
-	if err == nil {
-		// 已点赞，取消点赞
-		db.Exec("DELETE FROM user_likes WHERE user_id = ? AND product_id = ?", userID, productID)
-		db.Exec("UPDATE products SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?", productID)
-		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已取消点赞", Data: gin.H{"liked": false}})
-		return
-	}
-
-	// 未点赞，添加点赞
-	now := time.Now()
-	db.Exec("INSERT INTO user_likes (user_id, product_id, created_at) VALUES (?, ?, ?)", userID, productID, now)
-	db.Exec("UPDATE products SET like_count = like_count + 1 WHERE id = ?", productID)
-	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "点赞成功", Data: gin.H{"liked": true}})
-}
-
 // ========== 历史记录 ==========
 
 func (h *SocialHandler) HistoryList(c *gin.Context) {

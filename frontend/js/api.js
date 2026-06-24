@@ -216,9 +216,6 @@ const api = {
     return this.get('/favorites/check?ids=' + ids.join(','));
   },
 
-  // 点赞
-  async toggleLike(productId) { return this.post('/products/' + productId + '/like'); },
-
   // 历史
   async getHistory() { return this.get('/history'); },
   async addHistory(data) { return this.post('/history', data); },
@@ -271,12 +268,7 @@ var CATEGORIES = [
 
 var CAMPUSES = [
   { value: 'hangkong', label: '航空港校区' },
-  { value: 'longquanyi', label: '龙泉驿校区' },
-  { value: 'main', label: '主校区' },
-  { value: 'south', label: '南校区' },
-  { value: 'north', label: '北校区' },
-  { value: 'east', label: '东校区' },
-  { value: 'west', label: '西校区' }
+  { value: 'longquanyi', label: '龙泉驿校区' }
 ];
 
 var BUILDINGS = Array.from({length:21}, function(_,i){ return {value: String(i+1), label: (i+1)+'栋'}; });

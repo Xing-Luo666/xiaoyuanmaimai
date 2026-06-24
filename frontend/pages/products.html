@@ -40,6 +40,7 @@
     <div class="cat-nav-item" onclick="setCategory('sports')">⚽ 运动</div>
     <div class="cat-nav-item" onclick="setCategory('entertainment')">🎮 娱乐</div>
     <div class="cat-nav-item" onclick="setCategory('clothing')">👗 服饰</div>
+    <div class="cat-nav-item" onclick="setCategory('beauty')">💄 美妆</div>
   </div>
 </nav>
 
@@ -115,7 +116,7 @@ function setSort(sort, el) {
 }
 
 function highlightCatNav() {
-  var cats = ['all', 'electronics', 'books', 'furniture', 'sports', 'entertainment', 'clothing'];
+  var cats = ['all', 'electronics', 'books', 'furniture', 'sports', 'entertainment', 'clothing', 'beauty'];
   document.querySelectorAll('.cat-nav-item').forEach(function(item, i) {
     item.classList.toggle('active', cats[i] === currentFilters.category);
   });
