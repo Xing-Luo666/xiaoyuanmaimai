@@ -298,6 +298,24 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 		rows.Scan(&info.PeerKey, &msgContent, &msgType, &senderID, &senderName, &info.LastTime, &dummyIsOther)
 		if msgType == "image" {
 			info.LastMsg = "[图片]"
+		} else if msgType == "system" {
+			var sysContent map[string]interface{}
+			if json.Unmarshal([]byte(msgContent), &sysContent) == nil {
+				actionMap := map[string]string{
+					"bought": "购买了", "accepted": "接受了订单", "rejected": "拒绝了订单",
+					"shipped": "已发货", "completed": "已确认收货", "cancelled": "取消了订单",
+				}
+				name, _ := sysContent["text"].(string)
+				act, _ := sysContent["action"].(string)
+				title, _ := sysContent["productTitle"].(string)
+				if verb, ok := actionMap[act]; ok {
+					info.LastMsg = name + " " + verb + " 「" + title + "」"
+				} else {
+					info.LastMsg = "[系统通知]"
+				}
+			} else {
+				info.LastMsg = "[系统通知]"
+			}
 		} else {
 			info.LastMsg = truncateStr(msgContent, 50)
 		}
@@ -813,4 +831,62 @@ func (h *ChatHandler) InitChat(c *gin.Context) {
 		"peerName": peerName,
 		"peerId":   req.PeerID,
 	}})
+}
+
+// SendSystemMsg 发送系统消息（订单状态变更通知），通过WebSocket实时推送给对方
+func (h *ChatHandler) SendSystemMsg(orderID, fromUserID, fromUserName, action, productTitle, productImage, specName string) {
+	db := h.Store.GetDB()
+
+	// 解析订单获取双方信息
+	var buyerID, sellerID string
+	if err := db.QueryRow("SELECT buyer_id, seller_id FROM orders WHERE id = ?", orderID).Scan(&buyerID, &sellerID); err != nil {
+		return
+	}
+
+	peerKey := makePeerKey(buyerID, sellerID)
+
+	// 确定目标用户
+	targetID := sellerID
+	if fromUserID == sellerID {
+		targetID = buyerID
+	}
+
+	// 系统消息发送者视为一个虚拟的"系统"账号（使用system前缀避免和真实用户冲突）
+	sysSenderID := "system"
+	sysSenderName := "系统通知"
+
+	content := map[string]interface{}{
+		"action":       action,
+		"text":         fromUserName,
+		"productTitle": productTitle,
+		"productImage": productImage,
+		"specName":     specName,
+		"orderId":      orderID,
+	}
+	contentJSON, _ := json.Marshal(content)
+
+	now := time.Now()
+	id := genID("sys")
+
+	_, err := db.Exec(
+		"INSERT INTO chat_messages (id, order_id, peer_key, sender_id, sender_name, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		id, orderID, peerKey, sysSenderID, sysSenderName, string(contentJSON), "system", now,
+	)
+	if err != nil {
+		return
+	}
+
+	// WebSocket 广播
+	broadcastMsg, _ := json.Marshal(gin.H{
+		"type":       "message",
+		"id":         id,
+		"orderId":    orderID,
+		"senderId":   sysSenderID,
+		"senderName": sysSenderName,
+		"content":    string(contentJSON),
+		"msgType":    "system",
+		"targetId":   targetID,
+		"createdAt":  now,
+	})
+	h.broadcast(peerKey, nil, broadcastMsg)
 }

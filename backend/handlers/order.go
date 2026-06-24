@@ -13,10 +13,11 @@ import (
 
 type OrderHandler struct {
 	Store *store.DBStore
+	Chat  *ChatHandler
 }
 
-func NewOrderHandler(s *store.DBStore) *OrderHandler {
-	return &OrderHandler{Store: s}
+func NewOrderHandler(s *store.DBStore, ch *ChatHandler) *OrderHandler {
+	return &OrderHandler{Store: s, Chat: ch}
 }
 
 type createOrderReq struct {
@@ -211,6 +212,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "下单成功", Data: order})
+
+	// 发送系统消息通知卖家
+	if h.Chat != nil {
+		h.Chat.SendSystemMsg(order.ID, userID, username, "bought", title, productImage.String, req.Spec)
+	}
 }
 
 func (h *OrderHandler) MyOrders(c *gin.Context) {
@@ -252,6 +258,7 @@ func (h *OrderHandler) MyOrders(c *gin.Context) {
 
 func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	userID := c.GetString("userId")
+	username := c.GetString("username")
 	orderID := c.Param("id")
 
 	var req struct {
@@ -364,6 +371,21 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	o.Status = req.Status
 	o.UpdatedAt = now
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "操作成功", Data: o})
+
+	// 发送系统消息通知对方
+	if h.Chat != nil {
+		// 确定谁对谁操作了啥
+		action := req.Status // "accepted", "rejected", "shipped", "completed", "cancelled"
+		switch action {
+		case "accepted", "rejected", "shipped":
+			// 卖家操作，通知买家
+		case "completed":
+			// 买家确认收货，通知卖家
+		case "cancelled":
+			// 任意一方取消，通知对方
+		}
+		h.Chat.SendSystemMsg(orderID, userID, username, action, o.ProductTitle, o.ProductImage, o.SpecName)
+	}
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {

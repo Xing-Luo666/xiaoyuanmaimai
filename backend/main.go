@@ -227,9 +227,9 @@ func main() {
 
 		authHandler := handlers.NewAuthHandler(dbStore)
 		productHandler := handlers.NewProductHandler(dbStore)
-		orderHandler := handlers.NewOrderHandler(dbStore)
-		socialHandler := handlers.NewSocialHandler(dbStore)
 		chatHandler := handlers.NewChatHandler(dbStore)
+		orderHandler := handlers.NewOrderHandler(dbStore, chatHandler)
+		socialHandler := handlers.NewSocialHandler(dbStore)
 
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
