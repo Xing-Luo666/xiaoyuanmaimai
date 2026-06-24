@@ -19,6 +19,21 @@
 .btn-fav.active { background:#ef4444; color:#fff }
 .btn-contact-seller { background:#6366f1; color:#fff; padding:10px 20px; border-radius:24px; border:none; font-size:14px; cursor:pointer; margin-top:8px; display:block; width:100% }
 .btn-contact-seller:hover { background:#4f46e5 }
+/* 地址选择弹窗 */
+.addr-modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center }
+.addr-modal { background:#fff; border-radius:12px; width:90%; max-width:460px; max-height:80vh; overflow-y:auto; padding:24px }
+.addr-modal h3 { margin:0 0 16px 0; font-size:18px }
+.addr-option { display:flex; align-items:center; padding:12px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer; margin-bottom:8px; transition:all .2s }
+.addr-option:hover { border-color:#2563eb }
+.addr-option.selected { border-color:#2563eb; background:#eff6ff }
+.addr-option input[type=radio] { margin-right:12px }
+.addr-option .addr-info { flex:1 }
+.addr-option .addr-info .addr-name { font-weight:600; font-size:14px }
+.addr-option .addr-info .addr-detail { font-size:12px; color:#6b7280; margin-top:2px }
+.addr-quick-form { background:#f9fafb; border-radius:8px; padding:16px; margin-top:12px }
+.addr-quick-form .form-row { display:flex; gap:8px; margin-bottom:8px }
+.addr-quick-form .form-row input, .addr-quick-form .form-row select { flex:1; padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px }
+.addr-modal-actions { display:flex; gap:8px; margin-top:16px; justify-content:flex-end }
 </style>
 </head>
 <body>
@@ -154,10 +169,97 @@ function changeQty(delta) {
   document.getElementById('qtyInput').value = quantity;
 }
 
+var selectedAddressId = null;
+
 async function buyNow() {
   if (currentProduct.specs && currentProduct.specs.length > 0 && !selectedSpec) { showToast('请选择规格', 'error'); return; }
+  // 加载地址列表并弹窗
+  var addrRes = await api.get('/addresses');
+  var addresses = addrRes.data || [];
+  showAddressModal(addresses);
+}
+
+function showAddressModal(addresses) {
+  var html = '<div class="addr-modal-overlay" id="addrModalOverlay" onclick="if(event.target===this)closeAddressModal()">';
+  html += '<div class="addr-modal"><h3>选择收货地址</h3>';
+
+  if (addresses.length > 0) {
+    addresses.forEach(function(a) {
+      var def = a.isDefault ? ' <span style="color:#22c55e;font-size:11px;font-weight:600">默认</span>' : '';
+      html += '<label class="addr-option' + (a.isDefault && !selectedAddressId ? ' selected' : '') + '" onclick="selectAddrOption(this,\'' + a.id + '\')">';
+      html += '<input type="radio" name="addrRadio" value="' + a.id + '"' + (a.isDefault && !selectedAddressId ? ' checked' : '') + '>';
+      html += '<div class="addr-info"><div class="addr-name">' + escHtml(a.campus||'') + (a.building ? ' ' + escHtml(a.building) + '栋' : '') + (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') + def + '</div>';
+      html += '<div class="addr-detail">' + escHtml(a.phone||'无电话') + '</div></div></label>';
+      if (a.isDefault && !selectedAddressId) selectedAddressId = a.id;
+    });
+    html += '<button class="addr-quick-form" style="width:100%;text-align:center;background:#fff;cursor:pointer;color:#6b7280;border:1px dashed #d1d5db" onclick="showQuickAddrForm()">+ 添加新地址</button>';
+    html += '<div id="quickAddrFormWrap"></div>';
+    html += '<div class="addr-modal-actions"><button class="mall-btn" onclick="closeAddressModal()">取消</button>';
+    html += '<button class="mall-btn mall-btn-primary" onclick="confirmBuyWithAddr()">确认下单</button></div>';
+  } else {
+    html += '<p style="color:#6b7280;margin-bottom:12px">您还没有收货地址，请先添加：</p>';
+    html += renderQuickAddrForm();
+    html += '<div class="addr-modal-actions"><button class="mall-btn" onclick="closeAddressModal()">取消</button>';
+    html += '<button class="mall-btn mall-btn-primary" onclick="confirmBuyWithAddr()">保存并下单</button></div>';
+  }
+
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (!selectedAddressId && addresses.length > 0) {
+    var def = addresses.find(function(a){return a.isDefault;});
+    if (def) selectedAddressId = def.id;
+  }
+}
+
+function selectAddrOption(el, id) {
+  selectedAddressId = id;
+  document.querySelectorAll('.addr-option').forEach(function(o){o.classList.remove('selected');});
+  el.classList.add('selected');
+  el.querySelector('input[type=radio]').checked = true;
+}
+
+function closeAddressModal() {
+  var overlay = document.getElementById('addrModalOverlay');
+  if (overlay) overlay.remove();
+}
+
+function showQuickAddrForm() {
+  document.getElementById('quickAddrFormWrap').innerHTML = renderQuickAddrForm();
+}
+
+function renderQuickAddrForm() {
+  return '<div class="addr-quick-form">' +
+    '<div class="form-row"><input type="text" id="addrPhone" placeholder="手机号"></div>' +
+    '<div class="form-row"><input type="text" id="addrCampus" placeholder="校区名称"></div>' +
+    '<div class="form-row"><input type="text" id="addrBuilding" placeholder="楼栋（如: 5号楼）"><input type="text" id="addrDorm" placeholder="宿舍号（如: 302）"></div>' +
+    '</div>';
+}
+
+async function confirmBuyWithAddr() {
+  // 如果有快速表单，先保存地址
+  var phoneEl = document.getElementById('addrPhone');
+  if (phoneEl && phoneEl.value.trim()) {
+    var data = {
+      phone: phoneEl.value.trim(),
+      campus: document.getElementById('addrCampus') ? document.getElementById('addrCampus').value.trim() : '',
+      building: document.getElementById('addrBuilding') ? document.getElementById('addrBuilding').value.trim() : '',
+      dormNumber: document.getElementById('addrDorm') ? document.getElementById('addrDorm').value.trim() : ''
+    };
+    if (!data.phone) { showToast('请输入联系电话', 'error'); return; }
+    var addrRes = await api.post('/addresses', data);
+    if (addrRes.code === 200) {
+      selectedAddressId = addrRes.data ? addrRes.data.id : '';
+    } else {
+      showToast(addrRes.message || '添加地址失败', 'error');
+      return;
+    }
+  }
+
+  if (!selectedAddressId) { showToast('请选择收货地址', 'error'); return; }
+
+  closeAddressModal();
   var price = selectedSpec ? selectedSpec.price : currentProduct.price;
-  var res = await api.post('/orders', { productId: currentProduct.id, price: price, quantity: quantity, spec: selectedSpec?selectedSpec.name:'' });
+  var res = await api.post('/orders', { productId: currentProduct.id, price: price, quantity: quantity, spec: selectedSpec?selectedSpec.name:'', addressId: selectedAddressId });
   if (res.code === 200) { showToast('下单成功！'); setTimeout(function(){ location.href='orders.html'; }, 800); }
   else { showToast(res.message || '购买失败', 'error'); }
 }

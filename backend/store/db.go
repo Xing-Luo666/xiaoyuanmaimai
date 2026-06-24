@@ -232,6 +232,8 @@ func (s *DBStore) initTables() error {
 			price DECIMAL(10,2) NOT NULL,
 			status VARCHAR(20) DEFAULT 'pending',
 			message TEXT,
+			address_id VARCHAR(64) DEFAULT '',
+			address_snapshot TEXT,
 			shipped_at DATETIME NULL,
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL,
@@ -358,6 +360,8 @@ func (s *DBStore) initTables() error {
 		"ALTER TABLE orders ADD COLUMN product_image VARCHAR(512) DEFAULT '' AFTER product_title",
 		"ALTER TABLE orders ADD COLUMN spec_name VARCHAR(255) DEFAULT '' AFTER product_image",
 		"ALTER TABLE orders ADD COLUMN quantity INT DEFAULT 1 AFTER spec_name",
+		"ALTER TABLE orders ADD COLUMN address_id VARCHAR(64) DEFAULT '' AFTER message",
+		"ALTER TABLE orders ADD COLUMN address_snapshot TEXT AFTER address_id",
 		"ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL AFTER status",
 		// 将 chat_messages.content 从 TEXT 升级为 MEDIUMTEXT（支持大图片）
 		"ALTER TABLE chat_messages MODIFY COLUMN content MEDIUMTEXT",

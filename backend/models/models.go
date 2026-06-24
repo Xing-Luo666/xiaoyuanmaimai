@@ -68,22 +68,23 @@ type Product struct {
 }
 
 type Order struct {
-	ID           string     `json:"id"`
-	ProductID    string     `json:"productId"`
-	ProductTitle string     `json:"productTitle"`
-	ProductImage string     `json:"productImage"`
-	SpecName     string     `json:"specName"`
-	Quantity     int        `json:"quantity"`
-	BuyerID      string     `json:"buyerId"`
-	BuyerName    string     `json:"buyerName"`
-	SellerID     string     `json:"sellerId"`
-	SellerName   string     `json:"sellerName"`
-	Price        float64    `json:"price"`
-	Status       string     `json:"status"`
-	Message      string     `json:"message"`
-	ShippedAt    *time.Time `json:"shippedAt"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID              string     `json:"id"`
+	ProductID       string     `json:"productId"`
+	ProductTitle    string     `json:"productTitle"`
+	ProductImage    string     `json:"productImage"`
+	SpecName        string     `json:"specName"`
+	Quantity        int        `json:"quantity"`
+	BuyerID         string     `json:"buyerId"`
+	BuyerName       string     `json:"buyerName"`
+	SellerID        string     `json:"sellerId"`
+	SellerName      string     `json:"sellerName"`
+	Price           float64    `json:"price"`
+	Status          string     `json:"status"`
+	Message         string     `json:"message"`
+	AddressSnapshot string     `json:"addressSnapshot"`
+	ShippedAt       *time.Time `json:"shippedAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
 type CartItem struct {

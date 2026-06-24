@@ -26,6 +26,7 @@ type createOrderReq struct {
 	Quantity  int                  `json:"quantity"`
 	Spec      string               `json:"spec"`
 	Specs     []createOrderReqSpec `json:"specs"`
+	AddressID string               `json:"addressId"`
 }
 
 type createOrderReqSpec struct {
@@ -101,23 +102,43 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		finalPrice = req.Price
 	}
 
+	// 如果有收货地址，查询并存储地址快照
+	var addressSnapshot string
+	if req.AddressID != "" {
+		var phone, campus, building, dormNumber string
+		err = tx.QueryRow("SELECT phone, campus, building, dorm_number FROM user_addresses WHERE id = ? AND user_id = ?", req.AddressID, userID).Scan(&phone, &campus, &building, &dormNumber)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "收货地址不存在"})
+			return
+		}
+		snap, _ := json.Marshal(map[string]string{
+			"phone":      phone,
+			"campus":     campus,
+			"building":   building,
+			"dormNumber": dormNumber,
+		})
+		addressSnapshot = string(snap)
+	}
+
 	now := time.Now()
 	order := models.Order{
-		ID:           genID("o"),
-		ProductID:    req.ProductID,
-		ProductTitle: title,
-		ProductImage: productImage.String,
-		SpecName:     req.Spec,
-		Quantity:     req.Quantity,
-		BuyerID:      userID,
-		BuyerName:    username,
-		SellerID:     sellerID,
-		SellerName:   sellerName,
-		Price:        finalPrice * float64(req.Quantity),
-		Status:       "pending",
-		Message:      req.Message,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:              genID("o"),
+		ProductID:       req.ProductID,
+		ProductTitle:    title,
+		ProductImage:    productImage.String,
+		SpecName:        req.Spec,
+		Quantity:        req.Quantity,
+		BuyerID:         userID,
+		BuyerName:       username,
+		SellerID:        sellerID,
+		SellerName:      sellerName,
+		Price:           finalPrice * float64(req.Quantity),
+		Status:          "pending",
+		Message:         req.Message,
+		AddressSnapshot: addressSnapshot,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	// 如果有规格，减少对应规格的库存
@@ -175,8 +196,8 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	}
 
 	_, err = tx.Exec(
-		"INSERT INTO orders (id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		order.ID, order.ProductID, order.ProductTitle, order.ProductImage, order.SpecName, order.Quantity, order.BuyerID, order.BuyerName, order.SellerID, order.SellerName, order.Price, order.Status, order.Message, order.CreatedAt, order.UpdatedAt,
+		"INSERT INTO orders (id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, address_id, address_snapshot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		order.ID, order.ProductID, order.ProductTitle, order.ProductImage, order.SpecName, order.Quantity, order.BuyerID, order.BuyerName, order.SellerID, order.SellerName, order.Price, order.Status, order.Message, req.AddressID, order.AddressSnapshot, order.CreatedAt, order.UpdatedAt,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -202,9 +223,9 @@ func (h *OrderHandler) MyOrders(c *gin.Context) {
 	var rows *sql.Rows
 
 	if role == "buyer" {
-		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, shipped_at, created_at, updated_at FROM orders WHERE buyer_id = ? ORDER BY created_at DESC", userID)
+		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE buyer_id = ? ORDER BY created_at DESC", userID)
 	} else {
-		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, shipped_at, created_at, updated_at FROM orders WHERE seller_id = ? ORDER BY created_at DESC", userID)
+		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE seller_id = ? ORDER BY created_at DESC", userID)
 	}
 
 	if err != nil {
@@ -255,7 +276,7 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 
 	db := h.Store.GetDB()
 
-	o, err := scanOrderRow(db.QueryRow("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, shipped_at, created_at, updated_at FROM orders WHERE id = ?", orderID))
+	o, err := scanOrderRow(db.QueryRow("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE id = ?", orderID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "订单不存在"})
 		return
@@ -369,7 +390,7 @@ func scanOrder(rows *sql.Rows) (models.Order, error) {
 	var o models.Order
 	var shippedAt sql.NullTime
 	err := rows.Scan(&o.ID, &o.ProductID, &o.ProductTitle, &o.ProductImage, &o.SpecName, &o.Quantity,
-		&o.BuyerID, &o.BuyerName, &o.SellerID, &o.SellerName, &o.Price, &o.Status, &o.Message, &shippedAt, &o.CreatedAt, &o.UpdatedAt)
+		&o.BuyerID, &o.BuyerName, &o.SellerID, &o.SellerName, &o.Price, &o.Status, &o.Message, &o.AddressSnapshot, &shippedAt, &o.CreatedAt, &o.UpdatedAt)
 	if shippedAt.Valid {
 		o.ShippedAt = &shippedAt.Time
 	}
@@ -380,7 +401,7 @@ func scanOrderRow(row *sql.Row) (models.Order, error) {
 	var o models.Order
 	var shippedAt sql.NullTime
 	err := row.Scan(&o.ID, &o.ProductID, &o.ProductTitle, &o.ProductImage, &o.SpecName, &o.Quantity,
-		&o.BuyerID, &o.BuyerName, &o.SellerID, &o.SellerName, &o.Price, &o.Status, &o.Message, &shippedAt, &o.CreatedAt, &o.UpdatedAt)
+		&o.BuyerID, &o.BuyerName, &o.SellerID, &o.SellerName, &o.Price, &o.Status, &o.Message, &o.AddressSnapshot, &shippedAt, &o.CreatedAt, &o.UpdatedAt)
 	if shippedAt.Valid {
 		o.ShippedAt = &shippedAt.Time
 	}

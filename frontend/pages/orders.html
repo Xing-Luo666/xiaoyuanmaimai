@@ -120,9 +120,21 @@ async function loadOrders(role) {
       '<div class="order-card-header"><div><b>'+escHtml(o.productTitle)+'</b>'+(o.specName?'<span style="color:#6b7280;font-size:12px;margin-left:8px">规格: '+escHtml(o.specName)+'</span>':'')+(o.quantity>1?'<span style="color:#6b7280;font-size:12px;margin-left:8px">x'+o.quantity+'</span>':'')+'</div>' +
       '<span style="background:'+bgColor+';color:'+textColor+';padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600">'+statusLabel+'</span></div>' +
       '<div class="order-card-body"><div style="font-size:24px">'+(role==='buyer'?'🛒':'💰')+'</div><div style="flex:1"><div>'+(role==='buyer'?'卖家':'买家')+': <b>'+escHtml(role==='buyer'?o.sellerName:o.buyerName)+'</b></div>' +
-      '<div style="color:#6b7280;font-size:13px">价格: <span style="color:#ef4444;font-weight:700">¥'+Number(o.price).toFixed(2)+'</span> · '+formatDate(o.createdAt)+'</div></div></div>' +
+      '<div style="color:#6b7280;font-size:13px">价格: <span style="color:#ef4444;font-weight:700">¥'+Number(o.price).toFixed(2)+'</span> · '+formatDate(o.createdAt)+'</div>' +
+      (o.addressSnapshot ? renderAddrSnapshot(o.addressSnapshot) : '') +
+      '</div></div>' +
       footerHTML + '</div>';
   }).join('');
+}
+
+function renderAddrSnapshot(snap) {
+  try {
+    var a = JSON.parse(snap);
+    return '<div style="font-size:11px;color:#9ca3af;margin-top:4px">📍 ' + escHtml(a.campus||'') +
+      (a.building ? ' ' + escHtml(a.building) + '栋' : '') +
+      (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') +
+      ' · ' + escHtml(a.phone||'') + '</div>';
+  } catch(e) { return ''; }
 }
 
 async function handleOrder(orderId, status) {
