@@ -30,7 +30,7 @@
     }).join('');
 
     return ''
-      + '<div class="nav-sticky-wrap">'
+      + '<div class="site-header-wrap">'
       +   '<div class="top-nav">'
       +     '<div class="top-nav-inner">'
       +       '<span>欢迎来到校园二手交易平台！</span>'
