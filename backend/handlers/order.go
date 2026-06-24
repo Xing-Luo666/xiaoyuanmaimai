@@ -215,7 +215,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 
 	// 发送系统消息通知卖家
 	if h.Chat != nil {
-		h.Chat.SendSystemMsg(order.ID, userID, username, "bought", title, productImage.String, req.Spec)
+		h.Chat.SendSystemMsg(order.ID, userID, username, "bought", title, productImage.String, req.Spec, order.Price, order.Quantity)
 	}
 }
 
@@ -384,7 +384,7 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 		case "cancelled":
 			// 任意一方取消，通知对方
 		}
-		h.Chat.SendSystemMsg(orderID, userID, username, action, o.ProductTitle, o.ProductImage, o.SpecName)
+		h.Chat.SendSystemMsg(orderID, userID, username, action, o.ProductTitle, o.ProductImage, o.SpecName, o.Price, o.Quantity)
 	}
 }
 
@@ -394,7 +394,7 @@ func (h *OrderHandler) Get(c *gin.Context) {
 
 	db := h.Store.GetDB()
 
-	o, err := scanOrderRow(db.QueryRow("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, shipped_at, created_at, updated_at FROM orders WHERE id = ?", orderID))
+	o, err := scanOrderRow(db.QueryRow("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE id = ?", orderID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "订单不存在"})
 		return

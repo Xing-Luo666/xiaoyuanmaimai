@@ -33,7 +33,6 @@
 .sys-msg .sys-time { color:#9ca3af; font-size:11px; margin-top:6px; text-align:right }
 .sys-msg img { width:40px; height:40px; border-radius:6px; object-fit:cover; flex-shrink:0 }
 .chat-msg .actions button { font-size:10px; padding:2px 6px; border:none; border-radius:4px; cursor:pointer; background:rgba(0,0,0,.5); color:#fff }
-</style>
 .chat-input { padding:12px 16px; background:#fff; border-top:1px solid #e5e7eb; display:flex; gap:8px; flex-shrink:0 }
 .chat-input input { flex:1; padding:10px 14px; border:1px solid #e5e7eb; border-radius:24px; font-size:14px; outline:none }
 .chat-input button { padding:8px 20px; border:none; border-radius:24px; background:#2563eb; color:#fff; cursor:pointer; font-size:14px }
@@ -282,8 +281,9 @@ function renderSystemMsg(m) {
   var name = escHtml(d.text || '');
   var title = escHtml(d.productTitle || '');
   var spec = d.specName ? ' · ' + escHtml(d.specName) : '';
+  var qty = d.quantity ? ' x' + d.quantity : '';
+  var price = d.price ? '¥' + Number(d.price).toFixed(2) : '';
   var img = d.productImage || '';
-  var oid = d.orderId || '';
 
   return '<div class="sys-msg" onclick="location.href=\'orders.html\'">' +
     '<div class="sys-row">' +
@@ -291,7 +291,8 @@ function renderSystemMsg(m) {
     (img ? '<img src="' + escAttr(img) + '" onerror="this.style.display=\'none\'">' : '') +
     '<div class="sys-info">' +
     '<div class="sys-title" style="color:' + info.color + '">' + name + ' ' + info.verb + '</div>' +
-    '<div class="sys-detail">' + title + spec + '</div>' +
+    '<div class="sys-detail">' + title + spec + qty + '</div>' +
+    (price ? '<div class="sys-detail" style="color:#ef4444;font-weight:600">' + price + '</div>' : '') +
     '</div></div>' +
     '<div class="sys-time">' + formatDate(m.createdAt) + ' · 点击查看订单</div>' +
     '</div>';

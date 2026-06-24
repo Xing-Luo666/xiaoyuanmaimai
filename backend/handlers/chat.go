@@ -834,7 +834,7 @@ func (h *ChatHandler) InitChat(c *gin.Context) {
 }
 
 // SendSystemMsg 发送系统消息（订单状态变更通知），通过WebSocket实时推送给对方
-func (h *ChatHandler) SendSystemMsg(orderID, fromUserID, fromUserName, action, productTitle, productImage, specName string) {
+func (h *ChatHandler) SendSystemMsg(orderID, fromUserID, fromUserName, action, productTitle, productImage, specName string, price float64, quantity int) {
 	db := h.Store.GetDB()
 
 	// 解析订单获取双方信息
@@ -862,6 +862,8 @@ func (h *ChatHandler) SendSystemMsg(orderID, fromUserID, fromUserName, action, p
 		"productImage": productImage,
 		"specName":     specName,
 		"orderId":      orderID,
+		"price":        price,
+		"quantity":     quantity,
 	}
 	contentJSON, _ := json.Marshal(content)
 

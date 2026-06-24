@@ -156,7 +156,7 @@ function renderDetail() {
 
 function selectSpec(sid) {
   var spec = (currentProduct.specs||[]).find(function(s){ return s.id===sid; });
-  if (!spec || spec.stock <= 0) { showToast('该规格无库存', 'error'); return; }
+  if (!spec || spec.stock === 0) { showToast('该规格无库存', 'error'); return; }
   selectedSpec = spec;
   quantity = 1;
   renderDetail();
@@ -164,7 +164,7 @@ function selectSpec(sid) {
 
 function changeQty(delta) {
   quantity = Math.max(1, quantity + delta);
-  var maxStock = selectedSpec ? selectedSpec.stock : 999;
+  var maxStock = selectedSpec ? (selectedSpec.stock === -1 ? 999 : selectedSpec.stock) : 999;
   quantity = Math.min(quantity, maxStock);
   document.getElementById('qtyInput').value = quantity;
 }
