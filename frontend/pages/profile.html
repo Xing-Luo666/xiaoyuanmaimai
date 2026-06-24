@@ -5,6 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>个人中心 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
+<style>
+.addr-modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center }
+.addr-modal { background:#fff; border-radius:12px; width:90%; max-width:460px; max-height:80vh; overflow-y:auto; padding:24px }
+.addr-modal h3 { margin:0 0 16px 0; font-size:18px }
+.addr-option { display:flex; align-items:center; padding:12px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer; margin-bottom:8px; transition:all .2s }
+.addr-option:hover { border-color:#2563eb }
+.addr-option.selected { border-color:#2563eb; background:#eff6ff }
+.addr-option input[type=radio] { margin-right:12px }
+.addr-option .addr-info { flex:1 }
+.addr-option .addr-info .addr-name { font-weight:600; font-size:14px }
+.addr-option .addr-info .addr-detail { font-size:12px; color:#6b7280; margin-top:2px }
+.addr-quick-form { background:#f9fafb; border-radius:8px; padding:16px; margin-top:12px }
+.addr-quick-form .form-row { display:flex; gap:8px; margin-bottom:8px }
+.addr-quick-form .form-row input { flex:1; padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px }
+.addr-modal-actions { display:flex; gap:8px; margin-top:16px; justify-content:flex-end }
+</style>
 </head>
 <body>
 <div class="nav-sticky-wrap">
@@ -134,6 +150,7 @@ function loadCart() {
   api.getCart().then(function(res) {
     var el = document.getElementById('cartList');
     var items = res.data || [];
+    window._cartItems = items;
     if (!items.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">🛒</div><p>购物车空空如也</p></div>'; return; }
     renderCartList();
 
@@ -179,21 +196,9 @@ function loadCart() {
     window.batchBuyCart = async function() {
       var ids = Object.keys(window._cartSelected || {});
       if (!ids.length) { showToast('请先选择商品', 'warning'); return; }
-      var succ = 0;
-      for (var i = 0; i < ids.length; i++) {
-        var it = items.find(function(x){ return x.id === ids[i]; });
-        if (!it) continue;
-        var r = await api.post('/orders', { productId: it.productId, price: it.price, quantity: it.quantity, spec: it.specName });
-        if (r.code === 200) succ++;
-      }
-      if (succ > 0) {
-        await api.removeCartItems(ids);
-        ids.forEach(function(id){ var s=window._cartSelected||{}; delete s[id]; });
-        items = items.filter(function(x){ return !ids.includes(x.id); });
-        if (!items.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">🛒</div><p>购物车空空如也</p></div>'; return; }
-        renderCartList();
-      }
-      showToast('成功购买 ' + succ + ' 件商品');
+      // 加载地址列表并弹窗
+      var addrRes = await api.get('/addresses');
+      showCartAddrModal(addrRes.data || [], ids, items);
     };
   });
 }
@@ -328,6 +333,52 @@ function loadMyReviews() {
 }
 
 function escHtml(s) { return s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+
+var _cartAddrId = null;
+function showCartAddrModal(addresses, ids, items) {
+  _cartAddrId = null;
+  var html = '<div class="addr-modal-overlay" id="addrModalOverlay" onclick="if(event.target===this)closeAddrModal()">';
+  html += '<div class="addr-modal"><h3>选择收货地址</h3>';
+  if (addresses.length > 0) {
+    addresses.forEach(function(a) {
+      html += '<label class="addr-option' + (a.isDefault ? ' selected' : '') + '" onclick="selectCartAddr(this,\'' + a.id + '\')">';
+      html += '<input type="radio" name="addrRadio" value="' + a.id + '"' + (a.isDefault ? ' checked' : '') + '>';
+      html += '<div class="addr-info"><div class="addr-name">' + escHtml(a.campus||'') + (a.building ? ' ' + escHtml(a.building) + '栋' : '') + (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') + (a.isDefault ? ' <span style="color:#22c55e;font-size:11px;font-weight:600">默认</span>' : '') + '</div>';
+      html += '<div class="addr-detail">' + escHtml(a.phone||'无电话') + '</div></div></label>';
+      if (a.isDefault) _cartAddrId = a.id;
+    });
+    html += '<div class="addr-modal-actions"><button class="mall-btn" onclick="closeAddrModal()">取消</button>';
+    html += '<button class="mall-btn mall-btn-primary" onclick="doCartBuy(\'' + ids.join(',') + '\')">确认下单</button></div>';
+  } else {
+    html += '<p style="color:#6b7280;margin-bottom:12px">您还没有收货地址，请先在"收货地址"中添加</p>';
+    html += '<div class="addr-modal-actions"><button class="mall-btn" onclick="closeAddrModal()">取消</button></div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function selectCartAddr(el, id) { _cartAddrId = id; document.querySelectorAll('.addr-option').forEach(function(o){o.classList.remove('selected');}); el.classList.add('selected'); }
+function closeAddrModal() { var o = document.getElementById('addrModalOverlay'); if (o) o.remove(); }
+
+async function doCartBuy(idsStr) {
+  if (!_cartAddrId) { showToast('请选择收货地址', 'error'); return; }
+  closeAddrModal();
+  var ids = idsStr.split(',');
+  var allItems = window._cartItems || [];
+  var succ = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var it = allItems.find(function(x){ return x.id === ids[i]; });
+    if (!it) continue;
+    var r = await api.post('/orders', { productId: it.productId, price: it.price, quantity: it.quantity, spec: it.specName, addressId: _cartAddrId });
+    if (r.code === 200) succ++;
+  }
+  if (succ > 0) {
+    await api.removeCartItems(ids);
+    showToast('成功购买 ' + succ + ' 件商品');
+    loadCart();
+  } else {
+    showToast('购买失败', 'error');
+  }
+}
 </script>
 </body>
 </html>
