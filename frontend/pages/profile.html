@@ -19,10 +19,13 @@
       <div class="profile-menu-item active" data-tab="myProducts" onclick="switchTab('myProducts',this)">📦 我的商品</div>
       <div class="profile-menu-item" data-tab="myOrders" onclick="switchTab('myOrders',this)">📋 购买记录</div>
       <div class="profile-menu-item" data-tab="sellOrders" onclick="switchTab('sellOrders',this)">💰 卖出记录</div>
+      <div class="profile-menu-item" data-tab="myReviews" onclick="switchTab('myReviews',this)">⭐ 我的评价</div>
       <div class="profile-menu-item" data-tab="cart" onclick="switchTab('cart',this)">🛒 购物车</div>
       <div class="profile-menu-item" data-tab="favorites" onclick="switchTab('favorites',this)">♥ 我的收藏</div>
       <div class="profile-menu-item" data-tab="history" onclick="switchTab('history',this)">🕐 浏览历史</div>
+      <div class="profile-menu-item" data-tab="addresses" onclick="switchTab('addresses',this)">📍 收货地址</div>
       <div class="profile-menu-item" data-tab="settings" onclick="switchTab('settings',this)">⚙️ 账号设置</div>
+      <div class="profile-menu-item" data-tab="changePwd" onclick="switchTab('changePwd',this)">🔒 修改密码</div>
     </div>
   </aside>
   <section class="profile-content" id="profileContent"></section>
@@ -62,11 +65,16 @@ function switchTab(tab, el) {
   if (tab === 'myProducts') { ct.innerHTML = '<h4 style="margin-bottom:14px">📦 我的商品</h4><div id="myProdList"></div>'; loadMyProducts(); }
   else if (tab === 'myOrders') { ct.innerHTML = '<h4 style="margin-bottom:14px">📋 购买记录</h4><div id="buyOrderList"></div>'; loadOrders('buyer', 'buyOrderList'); }
   else if (tab === 'sellOrders') { ct.innerHTML = '<h4 style="margin-bottom:14px">💰 卖出记录</h4><div id="sellOrderList"></div>'; loadOrders('seller', 'sellOrderList'); }
+  else if (tab === 'myReviews') { ct.innerHTML = '<h4 style="margin-bottom:14px">⭐ 我的评价</h4><div id="reviewsWrap"></div>'; loadMyReviews(); }
   else if (tab === 'cart') { ct.innerHTML = '<h4 style="margin-bottom:14px">🛒 购物车</h4><div id="cartList"></div>'; loadCart(); }
   else if (tab === 'favorites') { ct.innerHTML = '<h4 style="margin-bottom:14px">♥ 我的收藏</h4><div id="favList"></div>'; loadFavorites(); }
   else if (tab === 'history') { ct.innerHTML = '<h4 style="margin-bottom:14px">🕐 浏览历史</h4><div id="histList"></div>'; loadHistory(); }
+  else if (tab === 'addresses') { ct.innerHTML = '<h4 style="margin-bottom:14px">📍 收货地址</h4><div id="addrList"></div><button class="mall-btn mall-btn-primary" onclick="showAddrForm()" style="margin-bottom:12px">+ 添加新地址</button><div id="addrFormWrap"></div>'; loadAddresses(); }
   else if (tab === 'settings') {
     ct.innerHTML = '<h4 style="margin-bottom:14px">⚙️ 账号设置</h4><div class="profile-form"><div class="form-row"><div><label>用户名</label><div style="padding:10px;color:var(--text-light)">' + escHtml(currentUser.username) + '</div></div><div><label>昵称</label><input type="text" id="setNickname" value="' + escHtml(currentUser.nickname || '') + '"></div></div><div class="form-row"><div><label>手机号</label><input type="text" id="setPhone" value="' + escHtml(currentUser.phone || '') + '"></div><div><label>邮箱</label><input type="email" id="setEmail" value="' + escHtml(currentUser.email || '') + '"></div></div><button class="mall-btn mall-btn-primary" onclick="saveSettings()">保存修改</button></div>';
+  }
+  else if (tab === 'changePwd') {
+    ct.innerHTML = '<h4 style="margin-bottom:14px">🔒 修改密码</h4><div class="profile-form"><div class="form-row"><div><label>原密码</label><input type="password" id="oldPwd" placeholder="请输入原密码"></div></div><div class="form-row"><div><label>新密码</label><input type="password" id="newPwd" placeholder="至少6位"></div><div><label>确认新密码</label><input type="password" id="newPwd2" placeholder="再次输入"></div></div><button class="mall-btn mall-btn-primary" onclick="changePassword()">修改密码</button></div>';
   }
 }
 
@@ -209,6 +217,113 @@ function loadHistory() {
     el.innerHTML = list.map(function(h) {
       return '<div class="order-item" onclick="location.href=\'product-detail.html?id=' + h.productId + '\'"><div class="order-item-img"><img src="' + (h.productImage||'/resources/default-product.gif') + '" onerror="this.src=\'/resources/default-product.gif\'"></div><div class="order-item-info"><div class="order-item-title">' + escHtml(h.productTitle) + '</div><div class="order-item-meta">最近浏览: ' + formatDate(h.viewedAt) + '</div></div><div class="order-item-price">¥' + Number(h.price).toFixed(2) + '</div></div>';
     }).join('');
+  });
+}
+
+function changePassword() {
+  var oldPwd = document.getElementById('oldPwd').value;
+  var newPwd = document.getElementById('newPwd').value;
+  var newPwd2 = document.getElementById('newPwd2').value;
+  if (!oldPwd) { showToast('请输入原密码', 'error'); return; }
+  if (newPwd.length < 6) { showToast('新密码至少6位', 'error'); return; }
+  if (newPwd !== newPwd2) { showToast('两次输入不一致', 'error'); return; }
+  api.put('/user/change-password', { oldPassword: oldPwd, newPassword: newPwd }).then(function(res) {
+    if (res.code === 200) { showToast('密码修改成功'); document.getElementById('oldPwd').value = ''; document.getElementById('newPwd').value = ''; document.getElementById('newPwd2').value = ''; }
+    else { showToast(res.message || '修改失败', 'error'); }
+  });
+}
+
+// ========== 收货地址 ==========
+var editingAddrId = null;
+
+function loadAddresses() {
+  api.get('/addresses').then(function(res) {
+    var el = document.getElementById('addrList');
+    var list = res.data || [];
+    if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📍</div><p>还没有收货地址</p></div>'; return; }
+    el.innerHTML = list.map(function(a) {
+      return '<div class="order-item" style="align-items:center">' +
+        '<div style="flex:1"><b>' + escHtml(a.campus||'') + '</b>' + (a.building ? ' ' + escHtml(a.building) + '栋' : '') + (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') + '<br><span style="font-size:12px;color:#6b7280">' + escHtml(a.phone||'无电话') + '</span>' + (a.isDefault ? ' <span style="color:#22c55e;font-size:11px;font-weight:600">默认</span>' : '') + '</div>' +
+        '<button class="mall-btn mall-btn-sm" onclick="editAddr(\'' + a.id + '\')">编辑</button>' +
+        '<button class="mall-btn mall-btn-sm mall-btn-danger" onclick="deleteAddr(\'' + a.id + '\')" style="margin-left:4px">删除</button>' +
+        '</div>';
+    }).join('');
+  });
+}
+
+function showAddrForm() {
+  editingAddrId = null;
+  document.getElementById('addrFormWrap').innerHTML =
+    '<div class="profile-form" style="margin-top:12px;padding:16px;background:#f9fafb;border-radius:8px">' +
+    '<div class="form-row"><div><label>联系电话</label><input type="text" id="addrPhone" placeholder="手机号"></div><div><label>校区</label><select id="addrCampus">' + CAMPUSES.map(function(c){return '<option value="'+c.value+'">'+c.label+'</option>'}).join('') + '</select></div></div>' +
+    '<div class="form-row"><div><label>楼栋</label><input type="text" id="addrBuilding" placeholder="如: 5号楼"></div><div><label>宿舍号</label><input type="text" id="addrDorm" placeholder="如: 302"></div></div>' +
+    '<div style="margin:8px 0"><label><input type="checkbox" id="addrDefault"> 设为默认地址</label></div>' +
+    '<button class="mall-btn mall-btn-primary" onclick="saveAddr()">保存地址</button>' +
+    '</div>';
+}
+
+function editAddr(id) {
+  api.get('/addresses').then(function(res) {
+    var addr = (res.data||[]).find(function(a){return a.id === id;});
+    if (!addr) return;
+    editingAddrId = id;
+    document.getElementById('addrFormWrap').innerHTML =
+      '<div class="profile-form" style="margin-top:12px;padding:16px;background:#f9fafb;border-radius:8px">' +
+      '<div class="form-row"><div><label>联系电话</label><input type="text" id="addrPhone" value="' + escHtml(addr.phone||'') + '"></div><div><label>校区</label><select id="addrCampus">' + CAMPUSES.map(function(c){return '<option value="'+c.value+'"'+(c.value===addr.campus?' selected':'')+'>'+c.label+'</option>'}).join('') + '</select></div></div>' +
+      '<div class="form-row"><div><label>楼栋</label><input type="text" id="addrBuilding" value="' + escHtml(addr.building||'') + '"></div><div><label>宿舍号</label><input type="text" id="addrDorm" value="' + escHtml(addr.dormNumber||'') + '"></div></div>' +
+      '<div style="margin:8px 0"><label><input type="checkbox" id="addrDefault"' + (addr.isDefault?' checked':'') + '> 设为默认地址</label></div>' +
+      '<button class="mall-btn mall-btn-primary" onclick="saveAddr()">更新地址</button>' +
+      '</div>';
+  });
+}
+
+function saveAddr() {
+  var data = {
+    phone: document.getElementById('addrPhone').value.trim(),
+    campus: document.getElementById('addrCampus').value,
+    building: document.getElementById('addrBuilding').value.trim(),
+    dormNumber: document.getElementById('addrDorm').value.trim(),
+    isDefault: document.getElementById('addrDefault').checked
+  };
+  if (!data.phone) { showToast('请输入联系电话', 'error'); return; }
+  var promise = editingAddrId ? api.put('/addresses/' + editingAddrId, data) : api.post('/addresses', data);
+  promise.then(function(res) {
+    if (res.code === 200) { showToast(editingAddrId ? '更新成功' : '添加成功'); editingAddrId = null; document.getElementById('addrFormWrap').innerHTML = ''; loadAddresses(); }
+    else { showToast(res.message || '操作失败', 'error'); }
+  });
+}
+
+function deleteAddr(id) {
+  if (!confirm('确定删除这个地址吗？')) return;
+  api.delete('/addresses/' + id).then(function(res) {
+    if (res.code === 200) { showToast('删除成功'); loadAddresses(); }
+    else { showToast(res.message || '删除失败', 'error'); }
+  });
+}
+
+// ========== 我的评价 ==========
+
+function loadMyReviews() {
+  api.get('/users/' + currentUser.id + '/reviews').then(function(res) {
+    var el = document.getElementById('reviewsWrap');
+    if (res.code !== 200) { el.innerHTML = '<div class="empty-state"><p>加载失败</p></div>'; return; }
+    var data = res.data;
+    var rate = (data.goodRate || 0).toFixed(1);
+    var html = '<div style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;padding:20px;border-radius:12px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center">' +
+      '<div><div style="font-size:32px;font-weight:700">' + rate + '%</div><div style="font-size:12px;opacity:0.8">好评率</div></div>' +
+      '<div><div style="font-size:32px;font-weight:700">' + (data.totalCount||0) + '</div><div style="font-size:12px;opacity:0.8">总评价</div></div>' +
+      '</div>';
+    if (!data.reviews || !data.reviews.length) { html += '<div class="empty-state"><p>暂无评价</p></div>'; }
+    else {
+      html += data.reviews.map(function(r) {
+        var stars = '';
+        for (var i=0; i<5; i++) stars += i < r.rating ? '★' : '☆';
+        return '<div class="order-item"><div style="flex:1"><div>' + stars + ' <span style="color:#F59E0B;font-weight:600">' + r.rating + '分</span></div>' +
+          (r.content ? '<div style="color:#374151;margin-top:4px">' + escHtml(r.content) + '</div>' : '') +
+          '<div style="font-size:12px;color:#9ca3af;margin-top:4px">' + formatDate(r.createdAt) + '</div></div></div>';
+      }).join('');
+    }
+    el.innerHTML = html;
   });
 }
 

@@ -83,6 +83,7 @@ async function loadOrders(role) {
     return;
   }
   ct.innerHTML = res.data.list.map(function(o) {
+    var id = o.id;
     var statusMap = {pending:'待处理',accepted:'已接受',shipped:'已发货',completed:'已完成',rejected:'已拒绝',cancelled:'已取消'};
     var statusLabel = statusMap[o.status] || o.status;
     var bgColor = o.status==='completed'?'#DCFCE7':o.status==='pending'?'#FEF3C7':o.status==='shipped'||o.status==='accepted'?'#DBEAFE':o.status==='rejected'||o.status==='cancelled'?'#F1F5F9':'#F1F5F9';
@@ -100,6 +101,11 @@ async function loadOrders(role) {
     // 买家: 确认收货
     if (o.status === 'shipped' && role === 'buyer') {
       footerHTML = '<div class="order-card-footer"><button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'completed\')">确认收货</button></div>';
+    }
+    // 已完成: 评价入口
+    if (o.status === 'completed') {
+      footerHTML = '<div class="order-card-footer" id="reviewBtns_' + o.id + '"><span style="color:#9ca3af;font-size:12px" id="reviewStatus_' + o.id + '">加载中...</span></div>';
+      checkReviewStatus(o.id);
     }
     // 买家: 取消订单 (pending 或 accepted)
     if ((o.status === 'pending' || o.status === 'accepted') && role === 'buyer') {
@@ -123,6 +129,40 @@ async function handleOrder(orderId, status) {
   var res = await api.put('/orders/' + orderId + '/status', { status: status });
   if (res.code === 200) { showToast('操作成功！'); loadOrders(currentRole); }
   else { showToast(res.message || '操作失败', 'error'); }
+}
+
+async function checkReviewStatus(orderId) {
+  var el = document.getElementById('reviewStatus_' + orderId);
+  if (!el) return;
+  var res = await api.get('/orders/' + orderId + '/reviewed');
+  if (res.code === 200 && res.data && res.data.reviewed) {
+    el.innerHTML = '已评价';
+  } else {
+    el.innerHTML = '<button class="mall-btn mall-btn-sm" onclick="showReviewForm(\'' + orderId + '\')">★ 写评价</button>';
+  }
+}
+
+function showReviewForm(orderId) {
+  var container = document.getElementById('reviewBtns_' + orderId);
+  if (!container) return;
+  container.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<span style="font-size:12px;color:#6b7280">评分</span>' +
+    '<select id="rating_' + orderId + '" style="padding:4px 8px;border-radius:6px;border:1px solid #d1d5db">' +
+    '<option value="5">★★★★★ 非常好</option><option value="4">★★★★☆ 好</option><option value="3">★★★☆☆ 一般</option><option value="2">★★☆☆☆ 差</option><option value="1">★☆☆☆☆ 很差</option>' +
+    '</select>' +
+    '<input type="text" id="content_' + orderId + '" placeholder="说点什么吧..." style="flex:1;min-width:120px;padding:4px 8px;border-radius:6px;border:1px solid #d1d5db">' +
+    '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="submitReview(\'' + orderId + '\')">提交评价</button>' +
+    '<button class="mall-btn mall-btn-sm" onclick="checkReviewStatus(\'' + orderId + '\')">取消</button>' +
+    '</div>';
+}
+
+async function submitReview(orderId) {
+  var rating = parseInt(document.getElementById('rating_' + orderId).value);
+  var content = document.getElementById('content_' + orderId).value.trim();
+  var res = await api.post('/orders/' + orderId + '/review', { rating: rating, content: content });
+  if (res.code === 200) { showToast('评价成功！'); checkReviewStatus(orderId); }
+  else { showToast(res.message || '评价失败', 'error'); }
 }
 
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }

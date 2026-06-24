@@ -273,3 +273,48 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	user.Password = ""
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "更新成功", Data: user})
 }
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID := c.GetString("userId")
+
+	var req struct {
+		OldPassword string `json:"oldPassword" binding:"required"`
+		NewPassword string `json:"newPassword" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+
+	if len(req.NewPassword) < 6 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "新密码至少6位"})
+		return
+	}
+
+	db := h.Store.GetDB()
+	var hashedPwd string
+	err := db.QueryRow("SELECT password FROM users WHERE id = ?", userID).Scan(&hashedPwd)
+	if err != nil {
+		c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "用户不存在"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hashedPwd), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "原密码错误"})
+		return
+	}
+
+	newHashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "密码加密失败"})
+		return
+	}
+
+	_, err = db.Exec("UPDATE users SET password = ?, updated_at = ? WHERE id = ?", string(newHashed), time.Now(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "修改失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "密码修改成功"})
+}

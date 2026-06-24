@@ -317,6 +317,31 @@ func (s *DBStore) initTables() error {
 			created_at DATETIME NOT NULL,
 			PRIMARY KEY (user_id, product_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS user_addresses (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(64) NOT NULL,
+			phone VARCHAR(20) DEFAULT '',
+			campus VARCHAR(64) DEFAULT '',
+			building VARCHAR(64) DEFAULT '',
+			dorm_number VARCHAR(64) DEFAULT '',
+			is_default TINYINT(1) DEFAULT 0,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL,
+			INDEX idx_user_addr (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+		`CREATE TABLE IF NOT EXISTS reviews (
+			id VARCHAR(64) PRIMARY KEY,
+			order_id VARCHAR(64) NOT NULL,
+			reviewer_id VARCHAR(64) NOT NULL,
+			target_id VARCHAR(64) NOT NULL,
+			rating TINYINT NOT NULL DEFAULT 5,
+			content VARCHAR(500) DEFAULT '',
+			created_at DATETIME NOT NULL,
+			UNIQUE KEY uk_order_reviewer (order_id, reviewer_id),
+			INDEX idx_target (target_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, ddl := range tables {

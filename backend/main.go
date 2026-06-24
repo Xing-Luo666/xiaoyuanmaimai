@@ -247,6 +247,7 @@ func main() {
 		{
 			auth.GET("/user/me", authHandler.GetCurrentUser)
 			auth.PUT("/user/profile", authHandler.UpdateProfile)
+			auth.PUT("/user/change-password", authHandler.ChangePassword)
 
 			auth.GET("/products/my", productHandler.MyProducts)
 			auth.POST("/products", productHandler.Create)
@@ -266,6 +267,15 @@ func main() {
 			auth.PUT("/cart/:id", socialHandler.CartUpdate)
 			auth.DELETE("/cart/:id", socialHandler.CartDelete)
 			auth.DELETE("/cart", socialHandler.CartDelete)
+
+			auth.GET("/addresses", socialHandler.AddressList)
+			auth.POST("/addresses", socialHandler.AddressSave)
+			auth.PUT("/addresses/:id", socialHandler.AddressUpdate)
+			auth.DELETE("/addresses/:id", socialHandler.AddressDelete)
+
+			auth.POST("/orders/:orderId/review", socialHandler.ReviewWrite)
+			auth.GET("/users/:userId/reviews", socialHandler.UserReviews)
+			auth.GET("/orders/:orderId/reviewed", socialHandler.OrderReviewed)
 
 			// 收藏
 			auth.GET("/favorites", socialHandler.FavoriteList)

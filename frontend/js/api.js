@@ -122,6 +122,7 @@ const api = {
   post(path, data) { return this.request('POST', path, data); },
   put(path, data) { return this.request('PUT', path, data); },
   del(path) { return this.request('DELETE', path); },
+  delete(path) { return this.request('DELETE', path); },
 
   async login(username, password) {
     const res = await this.post('/login', { username, password });

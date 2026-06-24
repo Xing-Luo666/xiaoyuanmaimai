@@ -20,7 +20,29 @@ type ProductSpec struct {
 	Name     string  `json:"name"`
 	Price    float64 `json:"price"`
 	OriPrice float64 `json:"oriPrice"`
-	Stock    int     `json:"stock"` // -1 = 无限库存
+	Stock    int     `json:"stock"`
+}
+
+type Address struct {
+	ID         string    `json:"id"`
+	UserID     string    `json:"userId"`
+	Phone      string    `json:"phone"`
+	Campus     string    `json:"campus"`
+	Building   string    `json:"building"`
+	DormNumber string    `json:"dormNumber"`
+	IsDefault  bool      `json:"isDefault"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Review struct {
+	ID         string    `json:"id"`
+	OrderID    string    `json:"orderId"`
+	ReviewerID string    `json:"reviewerId"`
+	TargetID   string    `json:"targetId"`
+	Rating     int       `json:"rating"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type Product struct {
