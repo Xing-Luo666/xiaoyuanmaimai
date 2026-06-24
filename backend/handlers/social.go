@@ -131,7 +131,7 @@ func (h *SocialHandler) CartDelete(c *gin.Context) {
 
 func (h *SocialHandler) ReviewWrite(c *gin.Context) {
 	userID := c.GetString("userId")
-	orderID := c.Param("orderId")
+	orderID := c.Param("id")
 
 	var req struct {
 		Rating  int    `json:"rating" binding:"required"`
@@ -230,7 +230,7 @@ func (h *SocialHandler) UserReviews(c *gin.Context) {
 
 func (h *SocialHandler) OrderReviewed(c *gin.Context) {
 	userID := c.GetString("userId")
-	orderID := c.Param("orderId")
+	orderID := c.Param("id")
 
 	db := h.Store.GetDB()
 	var existID string

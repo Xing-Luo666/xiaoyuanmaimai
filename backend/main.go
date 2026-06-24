@@ -273,9 +273,9 @@ func main() {
 			auth.PUT("/addresses/:id", socialHandler.AddressUpdate)
 			auth.DELETE("/addresses/:id", socialHandler.AddressDelete)
 
-			auth.POST("/orders/:orderId/review", socialHandler.ReviewWrite)
+			auth.POST("/orders/:id/review", socialHandler.ReviewWrite)
 			auth.GET("/users/:userId/reviews", socialHandler.UserReviews)
-			auth.GET("/orders/:orderId/reviewed", socialHandler.OrderReviewed)
+			auth.GET("/orders/:id/reviewed", socialHandler.OrderReviewed)
 
 			// 收藏
 			auth.GET("/favorites", socialHandler.FavoriteList)
