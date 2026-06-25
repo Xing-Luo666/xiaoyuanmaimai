@@ -114,9 +114,25 @@ var viewerSrc = '';     // 当前查看的图片URL
 
     loadHistory().then(function() {
       connectWS();
+      markPeerRead();
     });
   });
 })();
+
+// 标记当前会话为已读，清除 header 红点
+function markPeerRead() {
+  if (!peerKey) return;
+  api.post('/chat-read?peer_key=' + encodeURIComponent(peerKey)).then(function() {
+    // 通知 header 刷新红点
+    if (window.SiteHeader && typeof SiteHeader.updateChatBadge === 'function') {
+      SiteHeader.updateChatBadge();
+    }
+    // 同步刷新聊天列表（若存在）
+    if (window.opener && window.opener.refreshChatList) {
+      window.opener.refreshChatList();
+    }
+  }).catch(function() {});
+}
 
 // 加载聊天历史（分页）
 async function loadHistory(before) {
@@ -185,6 +201,10 @@ function connectWS() {
     } else {
       var existing = messages.find(function(x){ return x.id === msg.id; });
       if (!existing) { messages.push(msg); }
+      // 收到对方消息时立即标记已读，避免红点残留
+      if (msg.senderId && msg.senderId !== userId) {
+        markPeerRead();
+      }
     }
     renderMessages();
   };

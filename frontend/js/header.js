@@ -181,6 +181,7 @@
     },
     doSearch: doSearch,
     updateUserUI: updateUserUI,
+    updateChatBadge: updateChatBadge,
     refresh: function() { updateUserUI(); }
   };
 })();
