@@ -56,6 +56,7 @@ var currentFilters = { category: 'all', campus: 'all', condition: 'all', hasImag
   if (params.get('category')) currentFilters.category = params.get('category');
   if (params.get('keyword')) { currentFilters.keyword = params.get('keyword'); var s = document.getElementById('listSearch'); if (s) s.value = params.get('keyword'); }
   if (params.get('sort')) currentFilters.sortBy = params.get('sort');
+  if (params.get('sortBy')) currentFilters.sortBy = params.get('sortBy');
   if (params.get('campus')) currentFilters.campus = params.get('campus');
   if (params.get('condition')) currentFilters.condition = params.get('condition');
   if (params.get('hasImage') === '1') currentFilters.hasImage = true;
