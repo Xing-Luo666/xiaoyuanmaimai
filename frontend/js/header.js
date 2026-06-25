@@ -48,6 +48,7 @@
       +   '</div>'
       +   '<header class="main-header subpage">'
       +     '<div class="header-inner">'
+      +       '<a href="javascript:void(0)" class="site-back-btn" onclick="if(history.length>1)history.back();else location.href=\'../index.html\'" title="返回"><span class="arrow">←</span></a>'
       +       '<div class="logo-area" onclick="location.href=\'../index.html\'" style="cursor:pointer">'
       +         '<div class="logo-icon">📚</div>'
       +         '<div>'
