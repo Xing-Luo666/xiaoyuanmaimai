@@ -244,17 +244,51 @@ func (h *OrderHandler) Create(c *gin.Context) {
 func (h *OrderHandler) MyOrders(c *gin.Context) {
 	userID := c.GetString("userId")
 	role := c.DefaultQuery("role", "buyer")
+	tab := c.DefaultQuery("tab", "all") // all/pending_pay/pending_ship/pending_recv/refund/pending_review
 
 	db := h.Store.GetDB()
+
+	// tab → status 过滤条件
+	// 淘宝6板块：全部/待付款/待发货/待收货/"退款/售后"/待评价
+	// 本系统无支付环节，"待付款"映射为 pending（待处理）
+	// "待发货" = accepted（卖家已接受，未发货）
+	// "待收货" = shipped（已发货）
+	// "退款/售后" = rejected/cancelled
+	// "待评价" = completed 且未评价
+	var statusFilter string
+	var extraJoin string
+	switch tab {
+	case "pending_pay":
+		statusFilter = "AND status = 'pending'"
+	case "pending_ship":
+		statusFilter = "AND status = 'accepted'"
+	case "pending_recv":
+		statusFilter = "AND status = 'shipped'"
+	case "refund":
+		statusFilter = "AND status IN ('rejected','cancelled')"
+	case "pending_review":
+		// 已完成且未评价（仅买家视角有意义）
+		extraJoin = "LEFT JOIN reviews r ON orders.id = r.order_id AND r.reviewer_id = orders.buyer_id"
+		statusFilter = "AND orders.status = 'completed' AND r.id IS NULL"
+	default:
+		statusFilter = ""
+	}
 
 	var err error
 	var rows *sql.Rows
 
-	if role == "buyer" {
-		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE buyer_id = ? ORDER BY created_at DESC", userID)
-	} else {
-		rows, err = db.Query("SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders WHERE seller_id = ? ORDER BY created_at DESC", userID)
+	baseQuery := "SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders"
+	if extraJoin != "" {
+		baseQuery += " " + extraJoin
 	}
+
+	ownerWhere := "WHERE buyer_id = ?"
+	if role != "buyer" {
+		ownerWhere = "WHERE seller_id = ?"
+	}
+
+	fullQuery := baseQuery + " " + ownerWhere + " " + statusFilter + " ORDER BY created_at DESC"
+	rows, err = db.Query(fullQuery, userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})

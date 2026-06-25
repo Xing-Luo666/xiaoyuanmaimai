@@ -36,13 +36,23 @@ type Address struct {
 }
 
 type Review struct {
-	ID         string    `json:"id"`
-	OrderID    string    `json:"orderId"`
-	ReviewerID string    `json:"reviewerId"`
-	TargetID   string    `json:"targetId"`
-	Rating     int       `json:"rating"`
-	Content    string    `json:"content"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID             string     `json:"id"`
+	OrderID        string     `json:"orderId"`
+	ReviewerID     string     `json:"reviewerId"`
+	ReviewerName   string     `json:"reviewerName"`
+	ReviewerAvatar string     `json:"reviewerAvatar"`
+	TargetID       string     `json:"targetId"`  // 被评价方（卖家ID）
+	ProductID      string     `json:"productId"` // 评价的商品ID
+	ProductTitle   string     `json:"productTitle"`
+	ProductImage   string     `json:"productImage"`
+	SpecName       string     `json:"specName"`
+	Rating         int        `json:"rating"` // 1-10，半星 step：1=0.5星，2=1星...10=5星
+	Content        string     `json:"content"`
+	AppendContent  string     `json:"appendContent"` // 追评内容
+	AppendAt       *time.Time `json:"appendAt"`      // 追评时间
+	HasAppend      bool       `json:"hasAppend"`     // 是否已追评
+	Images         []string   `json:"images"`        // 评价图片（多张）
+	CreatedAt      time.Time  `json:"createdAt"`
 }
 
 type Product struct {
@@ -63,6 +73,9 @@ type Product struct {
 	ViewCount   int           `json:"viewCount"`
 	LikeCount   int           `json:"likeCount"`
 	FavCount    int           `json:"favCount"`
+	RatingAvg   float64       `json:"ratingAvg"`   // 评分均分（0-5，无人打分默认5）
+	RatingCount int           `json:"ratingCount"` // 评分人数
+	Sold30d     int           `json:"sold30d"`     // 近30天销量（滑动窗口）
 	CreatedAt   time.Time     `json:"createdAt"`
 	UpdatedAt   time.Time     `json:"updatedAt"`
 }
@@ -165,4 +178,32 @@ type PageData struct {
 	Total    int         `json:"total"`
 	Page     int         `json:"page"`
 	PageSize int         `json:"pageSize"`
+}
+
+// ShopInfo 卖家店铺信息
+type ShopInfo struct {
+	SellerID     string  `json:"sellerId"`
+	SellerName   string  `json:"sellerName"`
+	SellerAvatar string  `json:"sellerAvatar"`
+	ShopRating   float64 `json:"shopRating"`   // 店铺综合评分（所有商品评分均分）
+	ReviewCount  int     `json:"reviewCount"`  // 评论总数
+	ProductCount int     `json:"productCount"` // 在售商品数
+	Sold30d      int     `json:"sold30d"`      // 店铺近30天总销量
+}
+
+// ReviewWriteRequest 评价创建请求
+type ReviewWriteRequest struct {
+	Rating  int      `json:"rating"` // 1-10（半星 step）
+	Content string   `json:"content"`
+	Images  []string `json:"images"`
+}
+
+// ReviewAppendRequest 追评请求
+type ReviewAppendRequest struct {
+	Content string `json:"content"`
+}
+
+// AvatarUploadRequest 头像上传响应
+type AvatarUploadResponse struct {
+	URL string `json:"url"`
 }

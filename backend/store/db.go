@@ -337,12 +337,21 @@ func (s *DBStore) initTables() error {
 			id VARCHAR(64) PRIMARY KEY,
 			order_id VARCHAR(64) NOT NULL,
 			reviewer_id VARCHAR(64) NOT NULL,
+			reviewer_name VARCHAR(64) NOT NULL DEFAULT '',
 			target_id VARCHAR(64) NOT NULL,
-			rating TINYINT NOT NULL DEFAULT 5,
+			product_id VARCHAR(64) NOT NULL DEFAULT '',
+			product_title VARCHAR(255) DEFAULT '',
+			product_image VARCHAR(512) DEFAULT '',
+			spec_name VARCHAR(255) DEFAULT '',
+			rating TINYINT NOT NULL DEFAULT 10,
 			content VARCHAR(500) DEFAULT '',
+			append_content VARCHAR(500) DEFAULT '',
+			append_at DATETIME NULL,
+			images JSON,
 			created_at DATETIME NOT NULL,
 			UNIQUE KEY uk_order_reviewer (order_id, reviewer_id),
-			INDEX idx_target (target_id)
+			INDEX idx_target (target_id),
+			INDEX idx_product (product_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
@@ -369,6 +378,21 @@ func (s *DBStore) initTables() error {
 		"ALTER TABLE chat_messages ADD COLUMN peer_key VARCHAR(128) DEFAULT '' AFTER order_id",
 		// 回填已有聊天记录的 peer_key
 		"UPDATE chat_messages cm SET cm.peer_key = (SELECT CONCAT(LEAST(o.buyer_id, o.seller_id), ':', GREATEST(o.buyer_id, o.seller_id)) FROM orders o WHERE o.id = cm.order_id) WHERE cm.peer_key = '' AND EXISTS (SELECT 1 FROM orders o WHERE o.id = cm.order_id)",
+		// 新增 reviews 表扩展字段（兼容旧 reviews 表）
+		"ALTER TABLE reviews ADD COLUMN reviewer_name VARCHAR(64) NOT NULL DEFAULT '' AFTER reviewer_id",
+		"ALTER TABLE reviews ADD COLUMN product_id VARCHAR(64) NOT NULL DEFAULT '' AFTER target_id",
+		"ALTER TABLE reviews ADD COLUMN product_title VARCHAR(255) DEFAULT '' AFTER product_id",
+		"ALTER TABLE reviews ADD COLUMN product_image VARCHAR(512) DEFAULT '' AFTER product_title",
+		"ALTER TABLE reviews ADD COLUMN spec_name VARCHAR(255) DEFAULT '' AFTER product_image",
+		"ALTER TABLE reviews ADD COLUMN append_content VARCHAR(500) DEFAULT '' AFTER content",
+		"ALTER TABLE reviews ADD COLUMN append_at DATETIME NULL AFTER append_content",
+		"ALTER TABLE reviews ADD COLUMN images JSON AFTER append_at",
+		"ALTER TABLE reviews ADD INDEX idx_product (product_id)",
+		// 回填 reviews 表的 product_id（从 orders 表关联）
+		"UPDATE reviews r SET r.product_id = (SELECT o.product_id FROM orders o WHERE o.id = r.order_id) WHERE r.product_id = ''",
+		"UPDATE reviews r SET r.reviewer_name = (SELECT u.nickname FROM users u WHERE u.id = r.reviewer_id) WHERE r.reviewer_name = ''",
+		// 新增 users 表 avatar 默认头像字段（如不存在）
+		"ALTER TABLE users ADD COLUMN avatar VARCHAR(255) DEFAULT '' AFTER nickname",
 	}
 	for _, ddl := range colAlters {
 		db.Exec(ddl) // 忽略错误

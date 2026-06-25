@@ -282,6 +282,7 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 	type ConvInfo struct {
 		PeerKey     string    `json:"peerKey"`
 		PeerName    string    `json:"peerName"`
+		PeerAvatar  string    `json:"peerAvatar"`
 		PeerID      string    `json:"peerId"`
 		LastMsg     string    `json:"lastMsg"`
 		LastMsgType string    `json:"lastMsgType"`
@@ -330,8 +331,8 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 				info.PeerID = parts[0]
 			}
 		}
-		// 获取对方昵称
-		db.QueryRow("SELECT nickname FROM users WHERE id = ?", info.PeerID).Scan(&info.PeerName)
+		// 获取对方昵称与头像
+		db.QueryRow("SELECT nickname, avatar FROM users WHERE id = ?", info.PeerID).Scan(&info.PeerName, &info.PeerAvatar)
 		if info.PeerName == "" {
 			info.PeerName = info.PeerID
 		}

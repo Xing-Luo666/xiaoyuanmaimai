@@ -230,6 +230,11 @@ func main() {
 		chatHandler := handlers.NewChatHandler(dbStore)
 		orderHandler := handlers.NewOrderHandler(dbStore, chatHandler)
 		socialHandler := handlers.NewSocialHandler(dbStore)
+		reviewHandler := &handlers.ReviewHandler{Store: dbStore}
+		userHandler := &handlers.UserHandler{Store: dbStore}
+
+		// 启动自动确认收货定时任务
+		handlers.StartAutoConfirm(dbStore)
 
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
@@ -248,8 +253,11 @@ func main() {
 			auth.GET("/user/me", authHandler.GetCurrentUser)
 			auth.PUT("/user/profile", authHandler.UpdateProfile)
 			auth.PUT("/user/change-password", authHandler.ChangePassword)
+			auth.GET("/user/profile", userHandler.GetProfile)
+			auth.POST("/user/avatar", userHandler.UploadAvatar)
 
 			auth.GET("/products/my", productHandler.MyProducts)
+			auth.GET("/shops/:id/products", productHandler.ShopProducts)
 			auth.POST("/products", productHandler.Create)
 			auth.POST("/upload", productHandler.UploadImage)
 			auth.POST("/upload/chat-image", chatHandler.UploadChatImage)
@@ -273,9 +281,16 @@ func main() {
 			auth.PUT("/addresses/:id", socialHandler.AddressUpdate)
 			auth.DELETE("/addresses/:id", socialHandler.AddressDelete)
 
-			auth.POST("/orders/:id/review", socialHandler.ReviewWrite)
-			auth.GET("/users/:userId/reviews", socialHandler.UserReviews)
-			auth.GET("/orders/:id/reviewed", socialHandler.OrderReviewed)
+			// 评价（新版）
+			auth.POST("/orders/:id/review", reviewHandler.Write)
+			auth.POST("/reviews/:id/append", reviewHandler.Append)
+			auth.DELETE("/reviews/:id", reviewHandler.Delete)
+			auth.GET("/products/:id/reviews", reviewHandler.ProductReviews)
+			auth.GET("/products/:id/rating", reviewHandler.ProductRating)
+			auth.GET("/shops/:id", reviewHandler.ShopInfo)
+			// 旧版兼容
+			auth.GET("/users/:userId/reviews", reviewHandler.UserReviews)
+			auth.GET("/orders/:id/reviewed", reviewHandler.OrderReviewed)
 
 			// 收藏
 			auth.GET("/favorites", socialHandler.FavoriteList)

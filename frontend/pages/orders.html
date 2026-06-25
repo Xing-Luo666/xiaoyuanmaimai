@@ -6,15 +6,46 @@
 <title>我的订单 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
 <style>
-.orders-wrap { max-width:900px; margin:20px auto; padding:0 20px }
+.orders-wrap { max-width:980px; margin:20px auto; padding:0 20px }
 .orders-tabs { display:flex; gap:0; background:var(--white); border-radius:var(--radius); border:1px solid var(--border); margin-bottom:16px; overflow:hidden }
-.orders-tab { flex:1; text-align:center; padding:12px; font-size:14px; cursor:pointer; transition:all .2s; border-bottom:2px solid transparent; font-weight:500 }
+.orders-tab { flex:1; text-align:center; padding:13px 8px; font-size:14px; cursor:pointer; transition:all .2s; border-bottom:2px solid transparent; font-weight:500; user-select:none }
 .orders-tab:hover { color:var(--primary); background:var(--primary-light) }
 .orders-tab.active { color:var(--primary); border-bottom-color:var(--primary); background:var(--primary-light) }
-.order-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); padding:18px; margin-bottom:12px }
+.orders-tab .tab-badge { display:inline-block; min-width:18px; padding:0 6px; height:18px; line-height:18px; border-radius:9px; background:#ef4444; color:#fff; font-size:11px; margin-left:4px; vertical-align:middle }
+.orders-tab .tab-badge.zero { display:none }
+.role-switch { display:flex; justify-content:center; gap:8px; margin-bottom:14px }
+.role-switch button { padding:6px 18px; border-radius:18px; border:1px solid var(--border); background:var(--white); cursor:pointer; font-size:13px; transition:all .2s }
+.role-switch button.active { background:var(--primary); color:#fff; border-color:var(--primary) }
+.order-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); padding:18px; margin-bottom:12px; transition:box-shadow .2s }
+.order-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.05) }
 .order-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border) }
 .order-card-body { display:flex; gap:14px; align-items:center }
-.order-card-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border) }
+.order-card-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); flex-wrap:wrap; align-items:center }
+.order-thumb { width:64px; height:64px; border-radius:8px; object-fit:cover; background:#f3f4f6; flex-shrink:0 }
+.status-pill { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:600; display:inline-block }
+.status-pending { background:#FEF3C7; color:#D97706 }
+.status-accepted { background:#DBEAFE; color:#2563EB }
+.status-shipped { background:#DBEAFE; color:#1D4ED8 }
+.status-completed { background:#DCFCE7; color:#16A34A }
+.status-rejected, .status-cancelled { background:#FEE2E2; color:#DC2626 }
+.mall-btn-sm { padding:5px 12px; font-size:12px; border-radius:6px }
+.empty-state { text-align:center; padding:80px 20px }
+.empty-state .icon { font-size:64px; margin-bottom:12px; opacity:.7 }
+.empty-state .text { font-size:15px; color:#6b7280; margin-bottom:16px }
+
+/* 评价表单 */
+.review-form { background:#fafafa; border:1px solid #e5e7eb; border-radius:8px; padding:14px; margin-top:12px }
+.star-picker { display:inline-flex; gap:2px; cursor:pointer; user-select:none }
+.star-picker .star { font-size:26px; color:#d1d5db; transition:color .15s,transform .1s; line-height:1 }
+.star-picker .star.active { color:#f59e0b }
+.star-picker .star:hover { transform:scale(1.15) }
+.star-picker .star.half { position:relative; width:13px; overflow:hidden; color:#d1d5db }
+.star-picker .star.half::before { content:'\u2605'; position:absolute; left:0; top:0; width:50%; overflow:hidden; color:#f59e0b }
+.star-picker .star.half.full-bg::before { content:'' }
+.review-form textarea { width:100%; min-height:80px; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; resize:vertical; font-family:inherit; font-size:13px; margin-top:10px; box-sizing:border-box }
+.review-form .form-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap }
+.review-form .form-label { font-size:13px; color:#6b7280; min-width:50px }
+.review-form .actions { display:flex; gap:8px; margin-top:10px }
 </style>
 </head>
 <body>
@@ -22,113 +53,203 @@
 <div id="siteHeaderPlaceholder"></div>
 
 <div class="orders-wrap">
-  <div class="orders-tabs">
-    <div class="orders-tab active" onclick="switchOrderTab('buyer',this)">我购买的</div>
-    <div class="orders-tab" onclick="switchOrderTab('seller',this)">我卖出的</div>
+  <div class="role-switch">
+    <button id="roleBuyerBtn" class="active" onclick="switchRole('buyer')">我购买的</button>
+    <button id="roleSellerBtn" onclick="switchRole('seller')">我卖出的</button>
   </div>
+  <div class="orders-tabs" id="tabBar"></div>
   <div id="ordersContent"></div>
 </div>
 
 <script src="../js/api.js"></script>
 <script src="../js/header.js"></script>
 <script>
+// 6 板块 Tab（参考淘宝）
+var TABS = [
+  { key: 'all',            label: '全部' },
+  { key: 'pending_pay',    label: '待付款' },
+  { key: 'pending_ship',   label: '待发货' },
+  { key: 'pending_recv',   label: '待收货' },
+  { key: 'refund',         label: '退款/售后' },
+  { key: 'pending_review', label: '待评价' }
+];
+
 var currentRole = 'buyer';
+var currentTab = 'all';
+var tabCounts = {};
 
 (async function() {
   if (!await api.verifyAndInit()) { location.href='login.html?redirect='+encodeURIComponent(location.href); return; }
   SiteHeader.render();
-  loadOrders('buyer');
+  renderTabBar();
+  await loadOrders();
+  // 后台异步刷新各 tab 数量（仅买家维度）
+  refreshTabCounts();
 })();
 
-function switchOrderTab(role, el) {
-  currentRole = role;
-  document.querySelectorAll('.orders-tab').forEach(function(t) { t.classList.remove('active'); });
-  el.classList.add('active');
-  loadOrders(role);
+function renderTabBar() {
+  var html = '';
+  TABS.forEach(function(t) {
+    var cnt = tabCounts[t.key] || 0;
+    var badgeCls = cnt > 0 ? '' : ' zero';
+    html += '<div class="orders-tab' + (t.key === currentTab ? ' active' : '') + '" onclick="switchTab(\'' + t.key + '\')">' +
+      t.label + '<span class="tab-badge' + badgeCls + '">' + cnt + '</span></div>';
+  });
+  document.getElementById('tabBar').innerHTML = html;
 }
 
-async function loadOrders(role) {
-  var res = await api.get('/orders', { role: role });
+function switchTab(key) {
+  currentTab = key;
+  document.querySelectorAll('.orders-tab').forEach(function(el, i) {
+    el.classList.toggle('active', TABS[i].key === key);
+  });
+  loadOrders();
+}
+
+function switchRole(role) {
+  currentRole = role;
+  document.getElementById('roleBuyerBtn').classList.toggle('active', role === 'buyer');
+  document.getElementById('roleSellerBtn').classList.toggle('active', role === 'seller');
+  currentTab = 'all';
+  renderTabBar();
+  loadOrders();
+  refreshTabCounts();
+}
+
+async function refreshTabCounts() {
+  // 并发查询每个 tab 的数量（仅当前 role）
+  await Promise.all(TABS.map(function(t) {
+    if (t.key === 'all') return Promise.resolve();
+    return api.getOrdersByTab(currentRole, t.key).then(function(res) {
+      tabCounts[t.key] = (res && res.code === 200 && res.data && res.data.list) ? res.data.list.length : 0;
+    }).catch(function(){});
+  }));
+  renderTabBar();
+}
+
+async function loadOrders() {
+  var res = await api.getOrdersByTab(currentRole, currentTab);
   var ct = document.getElementById('ordersContent');
   if (res.code !== 200 || !res.data.list || !res.data.list.length) {
-    var icon = role==='buyer'?'🛒':'💰';
-    var text = '暂无'+(role==='buyer'?'购买':'卖出')+'记录';
-    ct.innerHTML = '<div style="text-align:center;padding:80px 20px"><div style="font-size:64px;margin-bottom:12px;opacity:.7">'+icon+'</div><div style="font-size:15px;color:#6b7280;margin-bottom:16px">'+text+'</div>'+(role==='buyer'?'<a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a>':'<a href="publish.html" class="mall-btn mall-btn-primary">去发布</a>')+'</div>';
+    var icon = currentRole === 'buyer' ? '🛒' : '💰';
+    var text = currentRole === 'buyer' ? '暂无购买记录' : '暂无卖出记录';
+    if (currentTab !== 'all') {
+      var tabLabel = TABS.find(function(t){ return t.key === currentTab; }).label;
+      text = '「' + tabLabel + '」分类下暂无订单';
+    }
+    ct.innerHTML = '<div class="empty-state"><div class="icon">' + icon + '</div><div class="text">' + text + '</div>' +
+      (currentRole === 'buyer' && currentTab === 'all' ? '<a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a>' :
+       currentRole === 'seller' && currentTab === 'all' ? '<a href="publish.html" class="mall-btn mall-btn-primary">去发布</a>' : '') +
+      '</div>';
     return;
   }
-  ct.innerHTML = res.data.list.map(function(o) {
-    var id = o.id;
-    var statusMap = {pending:'待处理',accepted:'已接受',shipped:'已发货',completed:'已完成',rejected:'已拒绝',cancelled:'已取消'};
-    var statusLabel = statusMap[o.status] || o.status;
-    var bgColor = o.status==='completed'?'#DCFCE7':o.status==='pending'?'#FEF3C7':o.status==='shipped'||o.status==='accepted'?'#DBEAFE':o.status==='rejected'||o.status==='cancelled'?'#F1F5F9':'#F1F5F9';
-    var textColor = o.status==='completed'?'#16A34A':o.status==='rejected'?'#EF4444':o.status==='cancelled'?'#6B7280':'#D97706';
+  ct.innerHTML = res.data.list.map(function(o) { return renderOrderCard(o); }).join('');
+  // 异步检查评价状态（仅 completed 且买家视角）
+  if (currentRole === 'buyer') {
+    res.data.list.forEach(function(o) {
+      if (o.status === 'completed') checkReviewStatus(o.id);
+    });
+  }
+}
 
-    var footerHTML = '';
-    var footerBtns = [];
-    // 卖家: 接受/拒绝
-    if (o.status === 'pending' && role === 'seller') {
-      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'accepted\')">接受</button>');
-      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'rejected\')">拒绝</button>');
-    }
-    // 卖家: 标记已发货
-    if (o.status === 'accepted' && role === 'seller') {
-      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'shipped\')">标记已发货</button>');
-    }
-    // 买家: 确认收货
-    if (o.status === 'shipped' && role === 'buyer') {
-      footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'completed\')">确认收货</button>');
-    }
-    // 买家: 取消订单 (pending 或 accepted)
-    if ((o.status === 'pending' || o.status === 'accepted') && role === 'buyer') {
-      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消订单</button>');
-    }
-    // 卖家: 取消售卖 (pending)
-    if (o.status === 'pending' && role === 'seller') {
-      footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\''+o.id+'\',\'cancelled\')">取消售卖</button>');
-    }
-    // 已完成: 评价入口
-    if (o.status === 'completed') {
-      footerHTML = '<div class="order-card-footer" id="reviewBtns_' + o.id + '"><span style="color:#9ca3af;font-size:12px" id="reviewStatus_' + o.id + '">加载中...</span></div>';
-      checkReviewStatus(o.id);
-    } else if (footerBtns.length > 0) {
-      footerHTML = '<div class="order-card-footer">' + footerBtns.join('') + '</div>';
-    }
+function renderOrderCard(o) {
+  var statusLabel = getOrderStatusLabel(o.status);
+  var statusCls = 'status-' + o.status;
+  var img = o.productImage ? '<img class="order-thumb" src="' + escHtml(o.productImage) + '" onerror="this.src=\'/resources/default-product.gif\'">' : '<div class="order-thumb" style="display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>';
 
-    return '<div class="order-card">' +
-      '<div class="order-card-header"><div><b>'+escHtml(o.productTitle)+'</b>'+(o.specName?'<span style="color:#6b7280;font-size:12px;margin-left:8px">规格: '+escHtml(o.specName)+'</span>':'')+(o.quantity>1?'<span style="color:#6b7280;font-size:12px;margin-left:8px">x'+o.quantity+'</span>':'')+'</div>' +
-      '<span style="background:'+bgColor+';color:'+textColor+';padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600">'+statusLabel+'</span></div>' +
-      '<div class="order-card-body"><div style="font-size:24px">'+(role==='buyer'?'🛒':'💰')+'</div><div style="flex:1"><div>'+(role==='buyer'?'卖家':'买家')+': <b>'+escHtml(role==='buyer'?o.sellerName:o.buyerName)+'</b></div>' +
-      '<div style="color:#6b7280;font-size:13px">价格: <span style="color:#ef4444;font-weight:700">¥'+Number(o.price).toFixed(2)+'</span> · '+formatDate(o.createdAt)+'</div>' +
-      (o.addressSnapshot ? renderAddrSnapshot(o.addressSnapshot) : '') +
-      '</div></div>' +
-      footerHTML + '</div>';
-  }).join('');
+  var footerBtns = [];
+  // 卖家: 接受/拒绝
+  if (o.status === 'pending' && currentRole === 'seller') {
+    footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'accepted\')">接受</button>');
+    footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'rejected\')">拒绝</button>');
+  }
+  // 卖家: 标记已发货
+  if (o.status === 'accepted' && currentRole === 'seller') {
+    footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'shipped\')">标记已发货</button>');
+  }
+  // 买家: 确认收货
+  if (o.status === 'shipped' && currentRole === 'buyer') {
+    footerBtns.push('<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'completed\')">确认收货</button>');
+  }
+  // 买家: 取消订单
+  if ((o.status === 'pending' || o.status === 'accepted') && currentRole === 'buyer') {
+    footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'cancelled\')">取消订单</button>');
+  }
+  // 卖家: 取消售卖
+  if (o.status === 'pending' && currentRole === 'seller') {
+    footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'cancelled\')">取消售卖</button>');
+  }
+  // 进入聊天
+  footerBtns.push('<a class="mall-btn mall-btn-sm" style="text-decoration:none" href="chat.html?orderId=' + o.id + '">💬 联系</a>');
+
+  // 已完成且买家视角：评价入口
+  var reviewHTML = '';
+  if (o.status === 'completed' && currentRole === 'buyer') {
+    reviewHTML = '<div class="order-card-footer" id="reviewBtns_' + o.id + '"><span style="color:#9ca3af;font-size:12px" id="reviewStatus_' + o.id + '">加载中...</span></div>';
+  }
+  if (footerBtns.length > 0) {
+    reviewHTML += '<div class="order-card-footer">' + footerBtns.join('') + '</div>';
+  }
+
+  return '<div class="order-card">' +
+    '<div class="order-card-header"><div style="display:flex;align-items:center;gap:10px">' +
+      '<a href="product-detail.html?id=' + encodeURIComponent(o.productId) + '" style="color:inherit;text-decoration:none;font-weight:600">' + escHtml(o.productTitle) + '</a>' +
+      (o.specName ? '<span style="color:#6b7280;font-size:12px">规格: ' + escHtml(o.specName) + '</span>' : '') +
+      (o.quantity > 1 ? '<span style="color:#6b7280;font-size:12px">x' + o.quantity + '</span>' : '') +
+    '</div>' +
+    '<span class="status-pill ' + statusCls + '">' + statusLabel + '</span></div>' +
+    '<div class="order-card-body">' + img +
+      '<div style="flex:1">' +
+        '<div>' + (currentRole === 'buyer' ? '卖家' : '买家') + ': <b>' + escHtml(currentRole === 'buyer' ? o.sellerName : o.buyerName) + '</b>' +
+          (currentRole === 'buyer' && o.sellerId ? ' <a href="shop.html?id=' + encodeURIComponent(o.sellerId) + '" style="color:var(--primary);font-size:12px;margin-left:6px">进店 →</a>' : '') +
+        '</div>' +
+        '<div style="color:#6b7280;font-size:13px">价格: <span style="color:#ef4444;font-weight:700">¥' + Number(o.price).toFixed(2) + '</span> · ' + formatDate(o.createdAt) + '</div>' +
+        (o.addressSnapshot ? renderAddrSnapshot(o.addressSnapshot) : '') +
+      '</div>' +
+    '</div>' +
+    reviewHTML + '</div>';
 }
 
 function renderAddrSnapshot(snap) {
   try {
     var a = JSON.parse(snap);
-    return '<div style="font-size:11px;color:#9ca3af;margin-top:4px">📍 ' + escHtml(a.campus||'') +
+    return '<div style="font-size:11px;color:#9ca3af;margin-top:4px">📍 ' + escHtml(a.campus || '') +
       (a.building ? ' ' + escHtml(a.building) + '栋' : '') +
       (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') +
-      ' · ' + escHtml(a.phone||'') + '</div>';
+      ' · ' + escHtml(a.phone || '') + '</div>';
   } catch(e) { return ''; }
 }
 
 async function handleOrder(orderId, status) {
+  // 状态机提示（前端预校验）
+  var confirmMap = {
+    'completed': '确认已收到商品？确认后将自动开启评价入口',
+    'cancelled': '确定取消该订单？',
+    'rejected': '确定拒绝该订单？',
+    'accepted': '确定接受该订单？',
+    'shipped': '确定已发货？'
+  };
+  if (confirmMap[status] && !confirm(confirmMap[status])) return;
+
   var res = await api.put('/orders/' + orderId + '/status', { status: status });
-  if (res.code === 200) { showToast('操作成功！'); loadOrders(currentRole); }
-  else { showToast(res.message || '操作失败', 'error'); }
+  if (res.code === 200) {
+    showToast('操作成功');
+    loadOrders();
+    refreshTabCounts();
+  } else {
+    showToast(res.message || '操作失败', 'error');
+  }
 }
 
+// ===== 评价相关 =====
 async function checkReviewStatus(orderId) {
   var el = document.getElementById('reviewStatus_' + orderId);
   if (!el) return;
-  var res = await api.get('/orders/' + orderId + '/reviewed');
+  var res = await api.orderReviewed(orderId);
   if (res.code === 200 && res.data && res.data.reviewed) {
-    el.innerHTML = '已评价';
+    el.innerHTML = '<span style="color:#16a34a">✓ 已评价</span> <button class="mall-btn mall-btn-sm" style="margin-left:6px" onclick="viewMyReview(\'' + orderId + '\')">查看/追评/删除</button>';
   } else {
-    el.innerHTML = '<button class="mall-btn mall-btn-sm" onclick="showReviewForm(\'' + orderId + '\')">★ 写评价</button>';
+    el.innerHTML = '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="showReviewForm(\'' + orderId + '\')">★ 写评价</button>';
   }
 }
 
@@ -136,23 +257,160 @@ function showReviewForm(orderId) {
   var container = document.getElementById('reviewBtns_' + orderId);
   if (!container) return;
   container.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-    '<span style="font-size:12px;color:#6b7280">评分</span>' +
-    '<select id="rating_' + orderId + '" style="padding:4px 8px;border-radius:6px;border:1px solid #d1d5db">' +
-    '<option value="5">★★★★★ 非常好</option><option value="4">★★★★☆ 好</option><option value="3">★★★☆☆ 一般</option><option value="2">★★☆☆☆ 差</option><option value="1">★☆☆☆☆ 很差</option>' +
-    '</select>' +
-    '<input type="text" id="content_' + orderId + '" placeholder="说点什么吧..." style="flex:1;min-width:120px;padding:4px 8px;border-radius:6px;border:1px solid #d1d5db">' +
-    '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="submitReview(\'' + orderId + '\')">提交评价</button>' +
-    '<button class="mall-btn mall-btn-sm" onclick="checkReviewStatus(\'' + orderId + '\')">取消</button>' +
+    '<div class="review-form">' +
+      '<div class="form-row"><span class="form-label">评分</span>' +
+        '<div class="star-picker" id="starPicker_' + orderId + '" data-value="10">' +
+          renderStarPicker(10) +
+        '</div>' +
+        '<span id="ratingText_' + orderId + '" style="font-size:12px;color:#6b7280">5 星</span>' +
+      '</div>' +
+      '<textarea id="content_' + orderId + '" placeholder="说说商品质量、卖家服务态度吧～（最多500字）" maxlength="500"></textarea>' +
+      '<div class="actions">' +
+        '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="submitReview(\'' + orderId + '\')">提交评价</button>' +
+        '<button class="mall-btn mall-btn-sm" onclick="checkReviewStatus(\'' + orderId + '\')">取消</button>' +
+      '</div>' +
     '</div>';
+  bindStarPicker(orderId);
+}
+
+// 渲染半星选择器：5 颗星，每颗支持点击切换全/半
+function renderStarPicker(initialValue) {
+  // initialValue: 1-10
+  var html = '';
+  for (var i = 1; i <= 5; i++) {
+    // i 颗星对应 value 2*i（全）或 2*i-1（半）
+    var isFull = initialValue >= 2 * i;
+    var isHalf = !isFull && initialValue >= 2 * i - 1;
+    var cls = 'star';
+    if (isFull) cls += ' active';
+    else if (isHalf) cls += ' half active';
+    html += '<span class="' + cls + '" data-star="' + i + '" onclick="onStarClick(this, ' + i + ')" style="width:' + (isHalf ? '13px' : '26px') + '">\u2605</span>';
+  }
+  return html;
+}
+
+function onStarClick(el, starIndex) {
+  var container = el.parentElement;
+  var currentVal = parseInt(container.getAttribute('data-value'), 10);
+  // 同一颗星二次点击：全→半，半→全
+  var targetVal;
+  if (currentVal === 2 * starIndex) {
+    targetVal = 2 * starIndex - 1; // 全 → 半
+  } else if (currentVal === 2 * starIndex - 1) {
+    targetVal = 2 * starIndex; // 半 → 全
+  } else {
+    targetVal = 2 * starIndex; // 默认全星
+  }
+  container.setAttribute('data-value', targetVal);
+  // 重新渲染
+  container.innerHTML = renderStarPicker(targetVal);
+  // 重新绑定（事件内联，无需重新绑定）
+  var orderId = container.id.replace('starPicker_', '');
+  var text = document.getElementById('ratingText_' + orderId);
+  if (text) text.textContent = (targetVal / 2).toFixed(1) + ' 星';
+}
+
+function bindStarPicker(orderId) {
+  // 内联 onclick，无需额外绑定
 }
 
 async function submitReview(orderId) {
-  var rating = parseInt(document.getElementById('rating_' + orderId).value);
+  var container = document.getElementById('starPicker_' + orderId);
+  var rating = parseInt(container.getAttribute('data-value'), 10);
   var content = document.getElementById('content_' + orderId).value.trim();
-  var res = await api.post('/orders/' + orderId + '/review', { rating: rating, content: content });
-  if (res.code === 200) { showToast('评价成功！'); checkReviewStatus(orderId); }
-  else { showToast(res.message || '评价失败', 'error'); }
+  if (!content) { showToast('请填写评价内容', 'warning'); return; }
+  var res = await api.writeReview(orderId, { rating: rating, content: content, images: [] });
+  if (res.code === 200) {
+    showToast('评价成功');
+    checkReviewStatus(orderId);
+    refreshTabCounts();
+  } else {
+    showToast(res.message || '评价失败', 'error');
+  }
+}
+
+// 查看自己已写评价 + 追评/删除入口
+async function viewMyReview(orderId) {
+  // 复用商品评价列表接口：先获取订单 → 取 productId → 拉评价列表 → 筛选 reviewer 是自己的
+  var orderRes = await api.get('/orders/' + orderId);
+  if (orderRes.code !== 200 || !orderRes.data) { showToast('订单查询失败', 'error'); return; }
+  var productId = orderRes.data.productId;
+  var revRes = await api.getProductReviews(productId, 1, 100);
+  if (revRes.code !== 200 || !revRes.data || !revRes.data.list) { showToast('评价查询失败', 'error'); return; }
+  var user = api.getUser();
+  var mine = revRes.data.list.find(function(r) { return r.orderId === orderId && r.reviewerId === user.userId; });
+  if (!mine) { showToast('未找到评价', 'warning'); return; }
+  showReviewDetailModal(mine);
+}
+
+function showReviewDetailModal(r) {
+  var overlay = document.createElement('div');
+  overlay.className = 'review-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var stars = ratingIntToStars(r.rating);
+  var appendHTML = '';
+  if (r.hasAppend) {
+    appendHTML = '<div style="margin-top:14px;padding-top:14px;border-top:1px dashed #e5e7eb"><div style="font-size:12px;color:#6b7280;margin-bottom:6px">追评 · ' + formatDate(r.appendAt) + '</div><div style="font-size:14px">' + escHtml(r.appendContent) + '</div></div>';
+  }
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:12px;max-width:560px;width:100%;padding:24px;box-sizing:border-box">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">' +
+        '<h3 style="margin:0;font-size:18px">我的评价</h3>' +
+        '<button class="mall-btn mall-btn-sm" onclick="this.closest(\'.review-modal-overlay\').remove()">关闭</button>' +
+      '</div>' +
+      '<div style="margin-bottom:10px">' + renderStars(stars, 22) + ' <span style="color:#6b7280;font-size:13px;margin-left:6px">' + stars.toFixed(1) + ' 星</span></div>' +
+      '<div style="font-size:11px;color:#9ca3af;margin-bottom:10px">' + formatDate(r.createdAt) + '</div>' +
+      '<div style="font-size:14px;line-height:1.6;background:#fafafa;padding:12px;border-radius:8px">' + escHtml(r.content) + '</div>' +
+      appendHTML +
+      '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">' +
+        (r.hasAppend ? '' : '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="showAppendForm(this,' + r.id + ')" data-review-id="' + r.id + '">追评</button>') +
+        '<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="deleteMyReview(\'' + r.id + '\')">删除评价</button>' +
+      '</div>' +
+      '<div id="appendFormSlot"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+function showAppendForm(btn, reviewId) {
+  var slot = btn.parentElement.nextElementSibling;
+  slot.innerHTML =
+    '<div style="margin-top:14px;padding:14px;background:#fafafa;border-radius:8px">' +
+      '<textarea id="appendContent_' + reviewId + '" placeholder="补充评价内容（最多500字）" maxlength="500" style="width:100%;min-height:80px;padding:8px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box;resize:vertical"></textarea>' +
+      '<div style="margin-top:8px;display:flex;gap:8px">' +
+        '<button class="mall-btn mall-btn-primary mall-btn-sm" onclick="submitAppend(\'' + reviewId + '\')">提交追评</button>' +
+        '<button class="mall-btn mall-btn-sm" onclick="this.parentElement.parentElement.remove()">取消</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function submitAppend(reviewId) {
+  var content = document.getElementById('appendContent_' + reviewId).value.trim();
+  if (!content) { showToast('追评内容不能为空', 'warning'); return; }
+  var res = await api.appendReview(reviewId, content);
+  if (res.code === 200) {
+    showToast('追评成功');
+    document.querySelector('.review-modal-overlay').remove();
+  } else {
+    showToast(res.message || '追评失败', 'error');
+  }
+}
+
+async function deleteMyReview(reviewId) {
+  if (!confirm('确定删除该评价？删除后不可恢复。')) return;
+  var res = await api.deleteReview(reviewId);
+  if (res.code === 200) {
+    showToast('已删除');
+    document.querySelector('.review-modal-overlay').remove();
+    // 刷新当前订单的评价状态
+    document.querySelectorAll('[id^="reviewStatus_"]').forEach(function(el) {
+      var orderId = el.id.replace('reviewStatus_', '');
+      checkReviewStatus(orderId);
+    });
+    refreshTabCounts();
+  } else {
+    showToast(res.message || '删除失败', 'error');
+  }
 }
 
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }

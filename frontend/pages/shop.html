@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>店铺 — 校园二手交易</title>
+<link rel="stylesheet" href="../css/mall.css">
+<style>
+.shop-wrap { max-width:1200px; margin:20px auto; padding:0 20px }
+.shop-header { background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-radius:14px; padding:24px; margin-bottom:20px; display:flex; align-items:center; gap:20px; flex-wrap:wrap }
+.shop-avatar { width:84px; height:84px; border-radius:50%; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:34px; flex-shrink:0; overflow:hidden }
+.shop-avatar img { width:100%; height:100%; object-fit:cover }
+.shop-info { flex:1; min-width:200px }
+.shop-name { font-size:22px; font-weight:700; color:#1f2937; margin-bottom:6px }
+.shop-stats { display:flex; gap:18px; flex-wrap:wrap; align-items:center; font-size:13px; color:#6b7280 }
+.shop-stats .stat-block { display:flex; align-items:center; gap:4px }
+.shop-stats .score-num { color:#f59e0b; font-weight:700; font-size:18px }
+.shop-stats .badge { background:#fff; padding:3px 10px; border-radius:12px; color:#f59e0b; font-weight:600 }
+.shop-actions { display:flex; gap:8px; flex-wrap:wrap }
+
+.product-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px }
+.product-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; cursor:pointer; transition:all .2s }
+.product-card:hover { box-shadow:0 4px 14px rgba(0,0,0,.08); transform:translateY(-2px) }
+.product-card img { width:100%; height:160px; object-fit:cover; background:#f3f4f6 }
+.product-card .pc-info { padding:10px 12px }
+.product-card .pc-title { font-size:13px; color:#374151; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px }
+.product-card .pc-price { font-size:16px; color:#ef4444; font-weight:700 }
+.product-card .pc-meta { font-size:11px; color:#9ca3af; margin-top:4px; display:flex; gap:8px; flex-wrap:wrap }
+.empty-state { text-align:center; padding:80px 20px; background:#fff; border-radius:12px; border:1px solid #e5e7eb }
+</style>
+</head>
+<body>
+
+<div id="siteHeaderPlaceholder"></div>
+
+<div class="shop-wrap">
+  <div id="shopHeader"></div>
+  <h3 style="margin:20px 0 12px;font-size:17px;color:#1f2937">店铺商品</h3>
+  <div id="shopProducts"></div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/header.js"></script>
+<script>
+var shopId = null;
+
+(async function() {
+  await api.verifyAndInit();
+  SiteHeader.render();
+  shopId = new URLSearchParams(location.search).get('id');
+  if (!shopId) { showError('参数错误'); return; }
+  loadShopInfo();
+  loadShopProducts();
+})();
+
+function showError(msg) {
+  document.getElementById('shopHeader').innerHTML = '<div class="empty-state"><p style="font-size:48px">⚠️</p><p>' + msg + '</p></div>';
+  document.getElementById('shopProducts').innerHTML = '';
+}
+
+async function loadShopInfo() {
+  try {
+    var res = await api.getShopInfo(shopId);
+    if (res.code !== 200 || !res.data) {
+      document.getElementById('shopHeader').innerHTML = '<div class="empty-state"><p>店铺信息加载失败</p></div>';
+      return;
+    }
+    var info = res.data;
+    var avg = info.ratingAvg || 5;
+    var cnt = info.ratingCount || 0;
+    var pcnt = info.productCount || 0;
+    var avatarHTML = info.avatar
+      ? '<img src="' + resolveAvatar(info.avatar) + '" onerror="this.style.display=\'none\'">'
+      : (info.sellerName ? info.sellerName[0].toUpperCase() : 'U');
+    var user = api.getUser();
+    var isSelf = user && user.userId === shopId;
+    var contactBtn = isSelf ? '' : '<button class="mall-btn mall-btn-primary" onclick="contactSeller()">💬 联系卖家</button>';
+
+    document.getElementById('shopHeader').innerHTML =
+      '<div class="shop-header">' +
+        '<div class="shop-avatar">' + avatarHTML + '</div>' +
+        '<div class="shop-info">' +
+          '<div class="shop-name">' + escHtml(info.sellerName || '匿名店铺') + (isSelf ? ' <span style="font-size:13px;color:#6b7280;font-weight:400">（我的店铺）</span>' : '') + '</div>' +
+          '<div class="shop-stats">' +
+            '<span class="stat-block"><span class="badge">⭐ ' + avg.toFixed(1) + '</span></span>' +
+            '<span class="stat-block">' + (cnt > 0 ? cnt + ' 人评分' : '暂无评分') + '</span>' +
+            '<span class="stat-block">📦 ' + pcnt + ' 件商品</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="shop-actions">' + contactBtn + '</div>' +
+      '</div>';
+  } catch(e) {
+    document.getElementById('shopHeader').innerHTML = '<div class="empty-state"><p>店铺信息加载失败</p></div>';
+  }
+}
+
+async function loadShopProducts() {
+  try {
+    var res = await api.getShopProducts(shopId);
+    var el = document.getElementById('shopProducts');
+    if (res.code !== 200 || !res.data || !res.data.length) {
+      el.innerHTML = '<div class="empty-state"><div style="font-size:48px;opacity:.7">📦</div><p style="margin-top:12px;color:#6b7280">店铺暂无在售商品</p></div>';
+      return;
+    }
+    el.innerHTML = '<div class="product-grid">' + res.data.map(function(p) {
+      var img = (p.images && p.images.length) ? p.images[0] : '/resources/default-product.gif';
+      var rating = p.ratingAvg || 5;
+      var sold = p.sold30d || 0;
+      return '<div class="product-card" onclick="location.href=\'product-detail.html?id=' + p.id + '\'">' +
+        '<img src="' + escHtml(img) + '" alt="' + escHtml(p.title) + '" onerror="this.src=\'/resources/default-product.gif\'">' +
+        '<div class="pc-info">' +
+          '<div class="pc-title">' + escHtml(p.title) + '</div>' +
+          '<div class="pc-price">¥' + Number(p.price).toFixed(2) + '</div>' +
+          '<div class="pc-meta"><span>⭐ ' + rating.toFixed(1) + '</span><span>月售 ' + sold + '</span></div>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  } catch(e) {
+    document.getElementById('shopProducts').innerHTML = '<div class="empty-state"><p>商品加载失败</p></div>';
+  }
+}
+
+async function contactSeller() {
+  var info = await api.getShopInfo(shopId);
+  if (info.code !== 200) { showToast('店铺信息获取失败', 'error'); return; }
+  var sellerName = info.data.sellerName || '卖家';
+  var res = await api.post('/chat/init', { peerId: shopId, peerName: sellerName });
+  if (res.code !== 200) { showToast('发起聊天失败: '+(res.message||''), 'error'); return; }
+  location.href = 'chat.html?peer_key=' + encodeURIComponent(res.data.peerKey) + '&peer_name=' + encodeURIComponent(res.data.peerName) + '&from=shop';
+}
+
+function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+</script>
+</body>
+</html>

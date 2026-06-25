@@ -318,6 +318,55 @@ func (h *ProductHandler) MyProducts(c *gin.Context) {
 	})
 }
 
+// ShopProducts 查看某卖家的店铺所有在售商品（公开接口，需要登录）
+func (h *ProductHandler) ShopProducts(c *gin.Context) {
+	sellerID := c.Param("id")
+	db := h.Store.GetDB()
+
+	rows, err := db.Query("SELECT id, title, description, category, price, ori_price, images, specs, cond, campus, building, seller_id, seller_name, status, view_count, like_count, fav_count, created_at, updated_at FROM products WHERE seller_id = ? AND status = 'selling' ORDER BY created_at DESC", sellerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		return
+	}
+	defer rows.Close()
+
+	products := []models.Product{}
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			continue
+		}
+		// 附加评分与销量
+		attachRatingAndSold(db, &p)
+		products = append(products, p)
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Code:    200,
+		Message: "成功",
+		Data:    models.PageData{List: products, Total: len(products), Page: 1, PageSize: 100},
+	})
+}
+
+// attachRatingAndSold 给商品附加评分与30天销量
+func attachRatingAndSold(db *sql.DB, p *models.Product) {
+	var total int
+	var ratingSum sql.NullFloat64
+	_ = db.QueryRow("SELECT COUNT(*), COALESCE(SUM(rating), 0) FROM reviews WHERE product_id = ?", p.ID).Scan(&total, &ratingSum)
+	if total > 0 && ratingSum.Valid {
+		avg := ratingSum.Float64 / float64(total) / 2.0
+		p.RatingAvg = float64(int(avg*10)) / 10.0
+		p.RatingCount = total
+	} else {
+		p.RatingAvg = 5.0
+		p.RatingCount = 0
+	}
+	var sold30d int
+	_ = db.QueryRow("SELECT COALESCE(SUM(quantity), 0) FROM orders WHERE product_id = ? AND status IN ('completed','shipped') AND created_at >= ?",
+		p.ID, time.Now().AddDate(0, 0, -30)).Scan(&sold30d)
+	p.Sold30d = sold30d
+}
+
 var allowedImageExts = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
 	".webp": true, ".bmp": true, ".heic": true, ".heif": true,

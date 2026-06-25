@@ -223,6 +223,37 @@ const api = {
   // 聊天
   async getChatHistory(orderId) { return this.get('/chat/' + orderId); },
   async getChatHistoryPeer(peerKey) { return this.get('/chat/peer/history', { peer_key: peerKey }); },
+
+  // 评价（新版）
+  async writeReview(orderId, data) { return this.post('/orders/' + orderId + '/review', data); },
+  async appendReview(reviewId, content) { return this.post('/reviews/' + reviewId + '/append', { content: content }); },
+  async deleteReview(reviewId) { return this.del('/reviews/' + reviewId); },
+  async getProductReviews(productId, page, pageSize) {
+    return this.get('/products/' + productId + '/reviews', { page: page || 1, pageSize: pageSize || 10 });
+  },
+  async getProductRating(productId) { return this.get('/products/' + productId + '/rating'); },
+  async getShopInfo(sellerId) { return this.get('/shops/' + sellerId); },
+  async getShopProducts(sellerId) { return this.get('/shops/' + sellerId + '/products'); },
+  async orderReviewed(orderId) { return this.get('/orders/' + orderId + '/reviewed'); },
+
+  // 用户头像与资料
+  async getProfile() { return this.get('/user/profile'); },
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const t = this.token;
+    const res = await fetch(API_BASE + '/user/avatar', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + t },
+      body: formData
+    });
+    return await res.json();
+  },
+
+  // 订单分页（6板块）
+  async getOrdersByTab(role, tab) {
+    return this.get('/orders', { role: role || 'buyer', tab: tab || 'all' });
+  },
 };
 
 (function exposeGlobals() {
@@ -312,4 +343,58 @@ function getStatusLabel(status) {
     cancelled: { text: '\u5DF2\u53D6\u6D88', cls: 'el-tag--danger' }
   };
   return map[status] || { text: status, cls: 'el-tag--info' };
+}
+
+// 头像 URL 规整：空则用默认头像
+function resolveAvatar(url) {
+  if (!url) return '/resources/default-avatar.svg';
+  if (url.startsWith('http') || url.startsWith('/')) return url;
+  return '/' + url.replace(/^\/+/, '');
+}
+
+// 半星评分转星数（0-5，含 0.5）
+// ratingInt: 1-10（1=0.5星，2=1星...10=5星）
+function ratingIntToStars(ratingInt) {
+  return (ratingInt || 0) / 2.0;
+}
+
+// 渲染星级（只读展示）
+// stars: 0-5 浮点数（支持 0.5）
+// size: 字号，默认 16
+function renderStars(stars, size) {
+  size = size || 16;
+  var html = '<span class="star-rating" style="font-size:' + size + 'px;line-height:1;letter-spacing:1px;vertical-align:middle">';
+  var full = Math.floor(stars);
+  var half = (stars - full) >= 0.5 ? 1 : 0;
+  var empty = 5 - full - half;
+  for (var i = 0; i < full; i++) html += '<span style="color:#f59e0b">\u2605</span>';
+  if (half) html += '<span style="color:#f59e0b">\u2606</span>'; // 简化用空心星代表半星
+  for (var j = 0; j < empty; j++) html += '<span style="color:#d1d5db">\u2605</span>';
+  html += '</span>';
+  return html;
+}
+
+// 订单状态映射到中文（含 6 板块对应关系）
+function getOrderStatusLabel(status) {
+  var map = {
+    pending: '\u5F85\u5904\u7406',
+    accepted: '\u5F85\u53D1\u8D27',
+    shipped: '\u5F85\u6536\u8D27',
+    rejected: '\u5DF2\u62D2\u7EDD',
+    cancelled: '\u5DF2\u53D6\u6D88',
+    completed: '\u5DF2\u5B8C\u6210'
+  };
+  return map[status] || status;
+}
+
+function getOrderStatusClass(status) {
+  var map = {
+    pending: 'order-status-pending',
+    accepted: 'order-status-accepted',
+    shipped: 'order-status-shipped',
+    rejected: 'order-status-rejected',
+    cancelled: 'order-status-cancelled',
+    completed: 'order-status-completed'
+  };
+  return map[status] || '';
 }
