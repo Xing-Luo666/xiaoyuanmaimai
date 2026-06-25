@@ -16,6 +16,9 @@
 .cart-item .price { color:#ef4444; font-weight:700; font-size:16px; white-space:nowrap }
 .cart-item .del-btn { color:#9ca3af;background:none;border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s }
 .cart-item .del-btn:hover { color:#ef4444;background:#fef2f2 }
+.cart-item-disabled { opacity:.55;filter:grayscale(.4) }
+.cart-item-disabled img { filter:grayscale(.6) }
+.sold-out-tag { display:inline-block;background:#fee2e2;color:#dc2626;font-size:11px;padding:1px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;font-weight:600 }
 .cart-wrap-title { font-size:22px;font-weight:700;color:#1f2937;margin-bottom:16px;display:flex;align-items:center;gap:8px }
 .summary { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin-top:16px;box-shadow:0 1px 3px rgba(0,0,0,.04) }
 .summary .total { font-size:22px; font-weight:700; color:#ef4444 }
@@ -76,15 +79,31 @@ async function loadCart() {
 function renderCart() {
   var html = '<div class="cart-wrap-title">🛒 购物清单</div><div class="publish-card" style="padding:8px 16px">';
   var totalPrice = 0;
-  var allChecked = cartItems.length > 0;
+  // 仅"可购买"项参与全选判断
+  var availableItems = cartItems.filter(function(it){ return isItemAvailable(it); });
+  var allChecked = availableItems.length > 0 && availableItems.every(function(it){ return selectedIds[it.id]; });
   cartItems.forEach(function(item, i) {
+    var available = isItemAvailable(item);
     var checked = selectedIds[item.id] ? 'checked' : '';
-    if (!checked) allChecked = false;
+    if (!checked && available) allChecked = false;
     if (checked) totalPrice += item.price * item.quantity;
-    html += '<div class="cart-item">' +
-      '<input type="checkbox" '+checked+' onchange="toggleSelect(\''+item.id+'\')" style="width:18px;height:18px;flex-shrink:0">' +
+
+    var soldOutTag = '';
+    var itemClass = 'cart-item';
+    var checkboxAttr = 'onchange="toggleSelect(\''+item.id+'\')"';
+    if (!available) {
+      // 已售罄/下架：禁用勾选，置灰显示
+      itemClass = 'cart-item cart-item-disabled';
+      checkboxAttr = 'disabled';
+      // 区分 sold_out 和 hidden（下架）
+      var tagText = item.productStatus === 'sold_out' ? '已售罄' : '已下架';
+      soldOutTag = '<span class="sold-out-tag">' + tagText + '</span>';
+    }
+
+    html += '<div class="' + itemClass + '">' +
+      '<input type="checkbox" '+checked+' '+checkboxAttr+' style="width:18px;height:18px;flex-shrink:0">' +
       '<img src="'+(item.productImage||'/resources/default-product.gif')+'" onerror="this.src=\'/resources/default-product.gif\'">' +
-      '<div class="info"><div class="title">'+escHtml(item.productTitle)+'</div>'+(item.specName?'<div class="spec">'+escHtml(item.specName)+'</div>':'')+'<div class="qty">数量: '+item.quantity+'</div></div>' +
+      '<div class="info"><div class="title">'+escHtml(item.productTitle)+' '+soldOutTag+'</div>'+(item.specName?'<div class="spec">'+escHtml(item.specName)+'</div>':'')+'<div class="qty">数量: '+item.quantity+'</div></div>' +
       '<div class="price">¥'+(item.price * item.quantity).toFixed(2)+'</div>' +
       '<button class="del-btn" onclick="removeItem(\''+item.id+'\')">删除</button>' +
       '</div>';
@@ -102,9 +121,15 @@ function renderCart() {
   document.getElementById('content').innerHTML = html + summary;
 }
 
+// 判断购物车项是否可购买：商品状态必须是 selling
+function isItemAvailable(item) {
+  return item.productStatus === 'selling' || !item.productStatus;
+}
+
 function toggleSelectAll(checkbox) {
   if (checkbox.checked) {
-    cartItems.forEach(function(item) { selectedIds[item.id] = true; });
+    // 仅选中可购买的项，跳过已售罄项
+    cartItems.forEach(function(item) { if (isItemAvailable(item)) selectedIds[item.id] = true; });
   } else {
     selectedIds = {};
   }
@@ -230,17 +255,52 @@ async function doBatchBuy(idsStr) {
   if (!selectedAddressId) { showToast('请选择收货地址', 'error'); return; }
 
   closeAddressModal();
-  var success = 0;
+
+  // 逐项下单：记录成功与失败项，失败时收集具体原因
+  var successIds = [];
+  var failedItems = []; // { title, reason }
+  var failedIds = [];
   for (var i = 0; i < ids.length; i++) {
     var item = cartItems.find(function(c){ return c.id === ids[i]; });
     if (!item) continue;
-    var res = await api.post('/orders', { productId: item.productId, price: item.price, quantity: item.quantity, spec: item.specName, addressId: selectedAddressId });
-    if (res.code === 200) success++;
+    // 前端预检：商品已售罄/下架的不发请求
+    if (!isItemAvailable(item)) {
+      var reason = item.productStatus === 'sold_out' ? '商品已售罄' : '商品已下架';
+      failedItems.push({ title: item.productTitle, reason: reason });
+      failedIds.push(item.id);
+      continue;
+    }
+    try {
+      var res = await api.post('/orders', { productId: item.productId, price: item.price, quantity: item.quantity, spec: item.specName, addressId: selectedAddressId });
+      if (res.code === 200) {
+        successIds.push(item.id);
+      } else {
+        failedItems.push({ title: item.productTitle, reason: res.message || '下单失败' });
+        failedIds.push(item.id);
+      }
+    } catch (e) {
+      failedItems.push({ title: item.productTitle, reason: '网络错误' });
+      failedIds.push(item.id);
+    }
   }
-  if (success > 0) {
-    await api.removeCartItems(ids);
+
+  // 关键修复：只删除成功下单的购物车项，失败的保留供用户查看
+  if (successIds.length > 0) {
+    try { await api.removeCartItems(successIds); } catch (e) {}
+    successIds.forEach(function(id){ delete selectedIds[id]; });
   }
-  showToast('成功购买 ' + success + ' 件商品');
+
+  // 构建结果提示
+  var msg = '✅ 成功购买 ' + successIds.length + ' 件';
+  if (failedItems.length > 0) {
+    msg += '；❌ 失败 ' + failedItems.length + ' 件';
+    // 把失败明细渲染为可读列表
+    var detail = failedItems.map(function(f){ return '• ' + f.title + '：' + f.reason; }).join('\n');
+    msg += '\n\n失败明细：\n' + detail;
+    showToast(msg, 'error', 6000);
+  } else {
+    showToast(msg, 'success', 3000);
+  }
   loadCart();
 }
 

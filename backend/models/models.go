@@ -88,16 +88,17 @@ type Order struct {
 }
 
 type CartItem struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"userId"`
-	ProductID    string    `json:"productId"`
-	ProductTitle string    `json:"productTitle"`
-	ProductImage string    `json:"productImage"`
-	SpecName     string    `json:"specName"`
-	Price        float64   `json:"price"`
-	Quantity     int       `json:"quantity"`
-	Selected     bool      `json:"selected"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"userId"`
+	ProductID     string    `json:"productId"`
+	ProductTitle  string    `json:"productTitle"`
+	ProductImage  string    `json:"productImage"`
+	SpecName      string    `json:"specName"`
+	Price         float64   `json:"price"`
+	Quantity      int       `json:"quantity"`
+	Selected      bool      `json:"selected"`
+	CreatedAt     time.Time `json:"createdAt"`
+	ProductStatus string    `json:"productStatus"` // 关联商品的实时状态：selling/sold_out/...
 }
 
 type Favorite struct {

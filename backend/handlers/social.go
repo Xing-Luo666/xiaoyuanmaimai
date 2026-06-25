@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"school-trade/models"
 	"school-trade/store"
@@ -23,7 +26,9 @@ func NewSocialHandler(s *store.DBStore) *SocialHandler {
 func (h *SocialHandler) CartList(c *gin.Context) {
 	userID := c.GetString("userId")
 	db := h.Store.GetDB()
-	rows, err := db.Query("SELECT id, user_id, product_id, product_title, product_image, spec_name, price, quantity, created_at FROM cart_items WHERE user_id = ? ORDER BY created_at DESC", userID)
+	// LEFT JOIN products 表，获取商品的实时状态，供前端展示售罄标识
+	// 注：products 表无 stock 列，库存由 specs JSON 维护，故只取 status
+	rows, err := db.Query(`SELECT c.id, c.user_id, c.product_id, c.product_title, c.product_image, c.spec_name, c.price, c.quantity, c.created_at, COALESCE(p.status, '') FROM cart_items c LEFT JOIN products p ON c.product_id = p.id WHERE c.user_id = ? ORDER BY c.created_at DESC`, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -32,7 +37,7 @@ func (h *SocialHandler) CartList(c *gin.Context) {
 	var items []models.CartItem
 	for rows.Next() {
 		var it models.CartItem
-		rows.Scan(&it.ID, &it.UserID, &it.ProductID, &it.ProductTitle, &it.ProductImage, &it.SpecName, &it.Price, &it.Quantity, &it.CreatedAt)
+		rows.Scan(&it.ID, &it.UserID, &it.ProductID, &it.ProductTitle, &it.ProductImage, &it.SpecName, &it.Price, &it.Quantity, &it.CreatedAt, &it.ProductStatus)
 		items = append(items, it)
 	}
 	if items == nil {
@@ -62,10 +67,54 @@ func (h *SocialHandler) CartAdd(c *gin.Context) {
 	db := h.Store.GetDB()
 	now := time.Now()
 
+	// 校验商品状态：已售罄/已下架的商品不允许加入购物车
+	// 注：products 表无 stock 列，库存由 specs JSON 维护
+	var productStatus string
+	var specsNS sql.NullString
+	err := db.QueryRow("SELECT status, specs FROM products WHERE id = ?", req.ProductID).Scan(&productStatus, &specsNS)
+	if err != nil {
+		c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "商品不存在"})
+		return
+	}
+	if productStatus != "selling" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "商品已下架或已售罄，无法加入购物车"})
+		return
+	}
+	productSpecsJSON := ""
+	if specsNS.Valid {
+		productSpecsJSON = specsNS.String
+	}
+	// 如果有规格，校验该规格库存
+	if req.SpecName != "" && productSpecsJSON != "" && productSpecsJSON != "null" {
+		var specs []models.ProductSpec
+		if err := json.Unmarshal([]byte(productSpecsJSON), &specs); err == nil {
+			specFound := false
+			for _, s := range specs {
+				if s.Name == req.SpecName || s.ID == req.SpecName {
+					specFound = true
+					if s.Stock == 0 {
+						c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "该规格已售罄"})
+						return
+					}
+					if s.Stock > 0 && s.Stock < req.Quantity {
+						c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足，仅剩 " + fmt.Sprintf("%d", s.Stock) + " 件"})
+						return
+					}
+					break
+				}
+			}
+			if !specFound {
+				c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "商品规格不存在"})
+				return
+			}
+		}
+	}
+	// 无规格商品不做库存预校验（products 表无 stock 列），由下单时的事务校验拦截
+
 	// 检查相同商品相同规格是否已在购物车
 	var existID string
 	var existQty int
-	err := db.QueryRow("SELECT id, quantity FROM cart_items WHERE user_id = ? AND product_id = ? AND spec_name = ?", userID, req.ProductID, req.SpecName).Scan(&existID, &existQty)
+	err = db.QueryRow("SELECT id, quantity FROM cart_items WHERE user_id = ? AND product_id = ? AND spec_name = ?", userID, req.ProductID, req.SpecName).Scan(&existID, &existQty)
 	if err == nil {
 		db.Exec("UPDATE cart_items SET quantity = ?, created_at = ? WHERE id = ?", existQty+req.Quantity, now, existID)
 		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已更新购物车数量"})

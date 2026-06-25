@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"school-trade/models"
 	"school-trade/store"
@@ -144,54 +145,75 @@ func (h *OrderHandler) Create(c *gin.Context) {
 
 	// 如果有规格，减少对应规格的库存
 	if req.Spec != "" {
-		var specsJSON string
-		if err := tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&specsJSON); err != nil {
+		var specsNS sql.NullString
+		if err := tx.QueryRow("SELECT specs FROM products WHERE id = ? FOR UPDATE", req.ProductID).Scan(&specsNS); err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询商品规格失败"})
 			return
 		}
-		if specsJSON != "" {
-			var specs []models.ProductSpec
-			json.Unmarshal([]byte(specsJSON), &specs)
-			found := false
-			for i := range specs {
-				if specs[i].Name == req.Spec || specs[i].ID == req.Spec {
-					if specs[i].Stock >= 0 && specs[i].Stock < req.Quantity {
-						tx.Rollback()
-						c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足"})
-						return
-					}
-					if specs[i].Stock > 0 {
-						specs[i].Stock -= req.Quantity
-					}
-					// stock==-1 表示无限，不减少
-					found = true
-					break
-				}
-			}
-			if found {
-				newSpecsJSON, _ := json.Marshal(specs)
-				if _, err := tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID); err != nil {
+		specsJSON := ""
+		if specsNS.Valid {
+			specsJSON = specsNS.String
+		}
+		// 商品无规格数据，但用户传了 spec，必须报错（防止超卖）
+		if specsJSON == "" || specsJSON == "null" {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "商品规格不存在: " + req.Spec})
+			return
+		}
+		var specs []models.ProductSpec
+		if err := json.Unmarshal([]byte(specsJSON), &specs); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "商品规格数据异常"})
+			return
+		}
+		found := false
+		for i := range specs {
+			if specs[i].Name == req.Spec || specs[i].ID == req.Spec {
+				// stock == -1 表示无限库存；stock == 0 表示已售罄
+				if specs[i].Stock == 0 {
 					tx.Rollback()
-					c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品规格失败"})
+					c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "该规格已售罄"})
 					return
 				}
+				if specs[i].Stock > 0 && specs[i].Stock < req.Quantity {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足，剩余 " + fmt.Sprintf("%d", specs[i].Stock) + " 件"})
+					return
+				}
+				if specs[i].Stock > 0 {
+					specs[i].Stock -= req.Quantity
+				}
+				found = true
+				break
+			}
+		}
+		// 关键修复：规格未找到时必须报错，否则订单创建但库存未扣，造成超卖
+		if !found {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "商品规格不存在: " + req.Spec})
+			return
+		}
+		newSpecsJSON, _ := json.Marshal(specs)
+		if _, err := tx.Exec("UPDATE products SET specs = ? WHERE id = ?", string(newSpecsJSON), req.ProductID); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品规格失败"})
+			return
+		}
 
-				// 检查是否所有规格库存都为0（排除无限库存 -1）
-				allSoldOut := true
-				for _, s := range specs {
-					if s.Stock == -1 || s.Stock > 0 {
-						allSoldOut = false
-						break
-					}
-				}
-				if allSoldOut {
-					if _, err := tx.Exec("UPDATE products SET status = 'sold_out' WHERE id = ?", req.ProductID); err != nil {
-						tx.Rollback()
-						c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品状态失败"})
-						return
-					}
-				}
+		// 检查是否所有规格库存都为0（排除无限库存 -1）
+		allSoldOut := true
+		for _, s := range specs {
+			if s.Stock == -1 || s.Stock > 0 {
+				allSoldOut = false
+				break
+			}
+		}
+		if allSoldOut {
+			if _, err := tx.Exec("UPDATE products SET status = 'sold_out' WHERE id = ?", req.ProductID); err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "更新商品状态失败"})
+				return
 			}
 		}
 	}
@@ -306,6 +328,26 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 			c.JSON(http.StatusForbidden, models.APIResponse{Code: 403, Message: "无权操作"})
 			return
 		}
+	}
+
+	// 状态机校验：防止非法状态流转（避免重复操作 / 倒退 / 跳级）
+	// 合法流转:
+	//   pending -> accepted | rejected | cancelled
+	//   accepted -> shipped | cancelled
+	//   shipped -> completed | cancelled
+	//   completed/rejected/cancelled -> (终态，不允许再变更)
+	legalTransitions := map[string]map[string]bool{
+		"pending":  {"accepted": true, "rejected": true, "cancelled": true},
+		"accepted": {"shipped": true, "cancelled": true},
+		"shipped":  {"completed": true, "cancelled": true},
+	}
+	allowed, ok := legalTransitions[o.Status]
+	if !ok || !allowed[req.Status] {
+		statusMap := map[string]string{"pending": "待处理", "accepted": "已接受", "shipped": "已发货", "completed": "已完成", "rejected": "已拒绝", "cancelled": "已取消"}
+		fromLabel := statusMap[o.Status]
+		toLabel := statusMap[req.Status]
+		c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "订单状态不允许从「" + fromLabel + "」变更为「" + toLabel + "」"})
+		return
 	}
 
 	now := time.Now()

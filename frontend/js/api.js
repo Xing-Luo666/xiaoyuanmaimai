@@ -229,13 +229,16 @@ const api = {
   window.SSO = api;
 })();
 
-function showToast(message, type) {
+function showToast(message, type, duration) {
   const icons = { success: '\u2713', error: '\u2715', warning: '!' };
   const el = document.createElement('div');
   el.className = 'mall-toast ' + (type || 'success');
+  // 支持 \n 换行的多行提示
+  el.style.whiteSpace = 'pre-wrap';
   el.textContent = message;
   document.body.appendChild(el);
-  setTimeout(function() { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function() { el.remove(); }, 300); }, 2500);
+  var ms = (typeof duration === 'number' && duration > 0) ? duration : 2500;
+  setTimeout(function() { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function() { el.remove(); }, 300); }, ms);
 }
 
 function formatPrice(price) {
