@@ -5,10 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>浏览历史 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
+<style>
+.hist-wrap { max-width:900px; margin:16px auto 40px; padding:0 20px }
+.page-title { font-size:22px;font-weight:700;color:#1f2937;margin-bottom:16px;display:flex;align-items:center;gap:8px }
+.hist-card { background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden }
+.hist-item { display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #f1f5f9;gap:14px;cursor:pointer;transition:all .15s }
+.hist-item:last-child { border-bottom:none }
+.hist-item:hover { background:#f9fafb;transform:translateX(2px) }
+.hist-item img { width:72px;height:72px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #e5e7eb }
+.hist-item .info { flex:1;min-width:0 }
+.hist-item .title { font-weight:600;font-size:14px;color:#1f2937;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.hist-item .meta { color:#6b7280;font-size:12px;display:flex;align-items:center;gap:8px }
+.hist-item .meta .time-icon { color:#9ca3af }
+.hist-item .price { color:#ef4444;font-weight:700;font-size:16px;white-space:nowrap }
+.hist-item .arrow { color:#9ca3af;font-size:18px;flex-shrink:0 }
+.empty-state { text-align:center;padding:80px 20px }
+.empty-state .empty-icon { font-size:64px;margin-bottom:12px;opacity:.7 }
+.empty-state .empty-text { font-size:15px;color:#6b7280;margin-bottom:16px }
+</style>
 </head>
 <body>
 <div id="siteHeaderPlaceholder"></div>
-<div class="publish-wrap" style="margin-top:16px">
+<div class="hist-wrap">
   <div id="content" style="text-align:center;padding:80px"><p>⏳ 加载中...</p></div>
 </div>
 
@@ -21,15 +39,16 @@
   var res = await api.getHistory();
   var list = res.data || [];
   if (list.length === 0) {
-    document.getElementById('content').innerHTML = '<div style="padding:80px;text-align:center"><p style="font-size:48px">🕐</p><p>暂无浏览记录</p><a href="products.html" class="mall-btn mall-btn-primary" style="margin-top:16px">去逛逛</a></div>';
+    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="empty-icon">🕐</div><div class="empty-text">暂无浏览记录</div><a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a></div>';
     return;
   }
-  var html = '<div class="publish-card"><h2>最近浏览 ('+list.length+')</h2>';
+  var html = '<div class="page-title">🕐 最近浏览 <span style="font-size:14px;color:#6b7280;font-weight:400">('+list.length+'件)</span></div><div class="hist-card">';
   list.forEach(function(h) {
-    html += '<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid #f1f5f9;gap:12px;cursor:pointer" onclick="location.href=\'product-detail.html?id='+h.productId+'\'">' +
-      '<img src="'+(h.productImage||'/resources/default-product.gif')+'" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.src=\'/resources/default-product.gif\'">' +
-      '<div style="flex:1"><div style="font-weight:600">'+escHtml(h.productTitle)+'</div><div style="color:#6b7280;font-size:12px">最近浏览: '+formatDate(h.viewedAt)+'</div></div>' +
-      '<div style="color:#ef4444;font-weight:700">¥'+Number(h.price).toFixed(2)+'</div>' +
+    html += '<div class="hist-item" onclick="location.href=\'product-detail.html?id='+h.productId+'\'">' +
+      '<img src="'+(h.productImage||'/resources/default-product.gif')+'" onerror="this.src=\'/resources/default-product.gif\'">' +
+      '<div class="info"><div class="title">'+escHtml(h.productTitle)+'</div><div class="meta"><span class="time-icon">👁</span><span>'+formatDate(h.viewedAt)+'</span></div></div>' +
+      '<div class="price">¥'+Number(h.price).toFixed(2)+'</div>' +
+      '<span class="arrow">›</span>' +
       '</div>';
   });
   html += '</div>';

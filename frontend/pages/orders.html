@@ -51,7 +51,9 @@ async function loadOrders(role) {
   var res = await api.get('/orders', { role: role });
   var ct = document.getElementById('ordersContent');
   if (res.code !== 200 || !res.data.list || !res.data.list.length) {
-    ct.innerHTML = '<div style="text-align:center;padding:80px"><p style="font-size:48px">'+(role==='buyer'?'🛒':'💰')+'</p><p>暂无'+(role==='buyer'?'购买':'卖出')+'记录</p><a href="products.html" class="mall-btn mall-btn-primary" style="margin-top:16px">去逛逛</a></div>';
+    var icon = role==='buyer'?'🛒':'💰';
+    var text = '暂无'+(role==='buyer'?'购买':'卖出')+'记录';
+    ct.innerHTML = '<div style="text-align:center;padding:80px 20px"><div style="font-size:64px;margin-bottom:12px;opacity:.7">'+icon+'</div><div style="font-size:15px;color:#6b7280;margin-bottom:16px">'+text+'</div>'+(role==='buyer'?'<a href="products.html" class="mall-btn mall-btn-primary">去逛逛</a>':'<a href="publish.html" class="mall-btn mall-btn-primary">去发布</a>')+'</div>';
     return;
   }
   ct.innerHTML = res.data.list.map(function(o) {

@@ -48,8 +48,7 @@
 <div id="siteHeaderPlaceholder"></div>
 <div class="chat-wrap">
   <div class="chat-inner-header">
-    <a href="chat-list.html" class="back-btn" id="chatBackBtn" title="返回消息列表">←</a>
-    <div><b id="chatTitle">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
+    <div style="flex:1"><b id="chatTitle" style="font-size:16px">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
   </div>
   <div class="chat-msgs" id="chatMsgs">
     <div class="loading-more" id="loadingMore">加载更多消息...</div>
@@ -106,18 +105,9 @@ var viewerSrc = '';     // 当前查看的图片URL
 
     if (!orderId && !peerKey) { showToast('缺少参数', 'error'); return; }
 
-    // 根据来源设置返回链接
+    // 根据来源设置页面标题
     var from = params.get('from');
     var productId = params.get('id');
-    var backBtn = document.getElementById('chatBackBtn');
-    if (from === 'detail' && productId) {
-      backBtn.href = 'product-detail.html?id=' + encodeURIComponent(productId);
-    } else if (from === 'list') {
-      // 从消息列表进入，用 history.back() 避免历史栈堆积导致循环
-      backBtn.removeAttribute('href');
-      backBtn.style.cursor = 'pointer';
-      backBtn.onclick = function() { if (history.length > 1) history.back(); else location.href = 'chat-list.html'; };
-    }
 
     document.getElementById('chatTitle').textContent = peerName;
     document.getElementById('orderInfo').textContent = peerKey ? '' : '订单号: ' + orderId;
