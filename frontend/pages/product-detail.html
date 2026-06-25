@@ -55,7 +55,7 @@
 <body>
 
 <div id="siteHeaderPlaceholder"></div>
-    <div class="publish-wrap" style="margin-top:16px">
+    <div class="detail-wrap" style="max-width:1200px;margin:16px auto 40px;padding:0 20px">
   <div id="detailContent" style="text-align:center;padding:80px;"><p>⏳ 加载中...</p></div>
 </div>
 
@@ -168,7 +168,7 @@ function renderDetail() {
     specHTML + qtyHTML +
     '<div class="detail-desc" style="margin:16px 0;line-height:1.7;color:#374151;background:#f9fafb;border-radius:8px;padding:14px">'+escHtml(p.description||'暂无描述')+'</div>' +
     '<div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:8px;padding:12px;margin:12px 0;display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#2563EB);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px">'+(p.sellerName?p.sellerName[0].toUpperCase():'U')+'</div><div><div style="font-weight:600;color:#1f2937">'+escHtml(p.sellerName||'匿名卖家')+'</div><div style="font-size:11px;color:#6b7280">卖家信誉良好</div></div></div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+actionHTML+'</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">'+actionHTML+'</div>' +
     '</div></div>' +
     '<div id="sellerProducts" style="margin-top:24px"></div>';
   // 加载卖家其他商品
