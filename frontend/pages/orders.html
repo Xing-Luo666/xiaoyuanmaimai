@@ -179,8 +179,8 @@ function renderOrderCard(o) {
   if (o.status === 'pending' && currentRole === 'seller') {
     footerBtns.push('<button class="mall-btn mall-btn-danger mall-btn-sm" onclick="handleOrder(\'' + o.id + '\',\'cancelled\')">取消售卖</button>');
   }
-  // 进入聊天
-  footerBtns.push('<a class="mall-btn mall-btn-sm" style="text-decoration:none" href="chat.html?orderId=' + o.id + '">💬 联系</a>');
+  // 进入聊天（与"联系卖家"共享同一 peer_key，避免每单开一个聊天）
+  footerBtns.push('<button class="mall-btn mall-btn-sm" onclick="contactOrderPeer(\'' + (currentRole === 'buyer' ? o.sellerId : o.buyerId) + '\',\'' + escHtmlAttr(currentRole === 'buyer' ? (o.sellerName||'卖家') : (o.buyerName||'买家')) + '\')">💬 联系</button>');
 
   // 已完成且买家视角：评价入口
   var reviewHTML = '';
@@ -218,6 +218,21 @@ function renderAddrSnapshot(snap) {
       (a.dormNumber ? ' ' + escHtml(a.dormNumber) : '') +
       ' · ' + escHtml(a.phone || '') + '</div>';
   } catch(e) { return ''; }
+}
+
+// 通过 peer_key 进入聊天，与商品详情页"联系卖家"、聊天列表共用同一会话
+async function contactOrderPeer(peerId, peerName) {
+  if (!peerId || peerId === 'undefined') { showToast('无法获取对方信息', 'error'); return; }
+  try {
+    var res = await api.post('/chat/init', { peerId: peerId, peerName: peerName || '对方' });
+    if (res.code !== 200) { showToast('发起聊天失败: ' + (res.message || ''), 'error'); return; }
+    location.href = 'chat.html?peer_key=' + encodeURIComponent(res.data.peerKey) + '&peer_name=' + encodeURIComponent(res.data.peerName || peerName) + '&from=order';
+  } catch(e) { showToast('网络异常', 'error'); }
+}
+
+function escHtmlAttr(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 async function handleOrder(orderId, status) {

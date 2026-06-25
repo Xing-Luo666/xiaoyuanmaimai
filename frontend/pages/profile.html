@@ -368,10 +368,10 @@ function loadMyReviews() {
     if (!data.reviews || !data.reviews.length) { html += '<div class="empty-state"><p>暂无评价</p></div>'; }
     else {
       html += data.reviews.map(function(r) {
-        var stars = '';
-        for (var i=0; i<5; i++) stars += i < r.rating ? '★' : '☆';
-        return '<div class="order-item"><div style="flex:1"><div>' + stars + ' <span style="color:#F59E0B;font-weight:600">' + r.rating + '分</span></div>' +
+        var starVal = ratingIntToStars(r.rating);
+        return '<div class="order-item"><div style="flex:1"><div>' + renderStars(starVal, 16) + ' <span style="color:#F59E0B;font-weight:600">' + starVal.toFixed(1) + ' 分</span></div>' +
           (r.content ? '<div style="color:#374151;margin-top:4px">' + escHtml(r.content) + '</div>' : '') +
+          (r.appendContent ? '<div style="color:#6b7280;margin-top:4px;font-size:13px">追评: ' + escHtml(r.appendContent) + '</div>' : '') +
           '<div style="font-size:12px;color:#9ca3af;margin-top:4px">' + formatDate(r.createdAt) + '</div></div></div>';
       }).join('');
     }

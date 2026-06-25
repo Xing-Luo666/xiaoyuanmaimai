@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"school-trade/models"
 	"school-trade/store"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +33,10 @@ func (h *ProductHandler) List(c *gin.Context) {
 	category := c.Query("category")
 	campus := c.Query("campus")
 	sellerID := c.Query("sellerId")
+	condition := c.Query("condition")
+	hasImage := c.Query("hasImage")
+	priceMin := c.Query("priceMin")
+	priceMax := c.Query("priceMax")
 	sortBy := c.DefaultQuery("sortBy", "newest")
 	status := c.DefaultQuery("status", "selling")
 
@@ -58,6 +64,25 @@ func (h *ProductHandler) List(c *gin.Context) {
 		query += " AND seller_id = ?"
 		args = append(args, sellerID)
 	}
+	if condition != "" && condition != "all" {
+		query += " AND cond = ?"
+		args = append(args, condition)
+	}
+	if hasImage == "1" {
+		query += " AND images NOT LIKE '%default-product.gif%' AND images != '[]' AND images != ''"
+	}
+	if priceMin != "" {
+		if v, err := strconv.ParseFloat(priceMin, 64); err == nil {
+			query += " AND price >= ?"
+			args = append(args, v)
+		}
+	}
+	if priceMax != "" {
+		if v, err := strconv.ParseFloat(priceMax, 64); err == nil {
+			query += " AND price <= ?"
+			args = append(args, v)
+		}
+	}
 
 	switch sortBy {
 	case "price_asc":
@@ -83,7 +108,24 @@ func (h *ProductHandler) List(c *gin.Context) {
 		if err != nil {
 			continue
 		}
+		// 附加评分与30天销量，让前端可显示
+		attachRatingAndSold(db, &p)
 		products = append(products, p)
+	}
+
+	// 评分/销量排序需在内存中处理（聚合字段不在 products 表）
+	switch sortBy {
+	case "rating_desc":
+		sort.SliceStable(products, func(i, j int) bool {
+			if products[i].RatingAvg != products[j].RatingAvg {
+				return products[i].RatingAvg > products[j].RatingAvg
+			}
+			return products[i].RatingCount > products[j].RatingCount
+		})
+	case "sold_desc":
+		sort.SliceStable(products, func(i, j int) bool {
+			return products[i].Sold30d > products[j].Sold30d
+		})
 	}
 
 	c.JSON(http.StatusOK, models.APIResponse{

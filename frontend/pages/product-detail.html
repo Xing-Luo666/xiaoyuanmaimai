@@ -453,19 +453,23 @@ async function loadSellerInfo(sellerId) {
     if (res.code !== 200 || !res.data) return;
     var info = res.data;
     var avatarEl = document.getElementById('sellerAvatar');
-    if (avatarEl && info.avatar) {
-      avatarEl.innerHTML = '<img src="' + resolveAvatar(info.avatar) + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'">';
+    var avatarUrl = info.sellerAvatar;
+    if (avatarEl && avatarUrl) {
+      avatarEl.innerHTML = '<img src="' + resolveAvatar(avatarUrl) + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + (info.sellerName ? info.sellerName[0].toUpperCase() : 'U') + '\'">';
     }
     var statsEl = document.getElementById('sellerStats');
     if (statsEl) {
-      var score = info.ratingAvg || 5;
-      var scoreCnt = info.ratingCount || 0;
+      var score = info.shopRating || 5;
+      var scoreCnt = info.reviewCount || 0;
       var productCnt = info.productCount || 0;
+      var sold = info.sold30d || 0;
       statsEl.innerHTML =
         '<span class="seller-score">⭐ ' + score.toFixed(1) + '</span>' +
         '<span>' + (scoreCnt > 0 ? scoreCnt + ' 人评分' : '暂无评分') + '</span>' +
         '<span>·</span>' +
-        '<span>' + productCnt + ' 件商品</span>';
+        '<span>' + productCnt + ' 件商品</span>' +
+        '<span>·</span>' +
+        '<span>近30天售 ' + sold + '</span>';
     }
   } catch(e) {}
 }

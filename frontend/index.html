@@ -318,7 +318,9 @@ function renderProductGrid(gridId, products) {
     var img = p.images && p.images.length ? p.images[0] : 'https://picsum.photos/seed/' + p.id + '/300/300';
     var tags = '';
     if (isNew(p.createdAt)) tags += '<span class="product-tag">NEW</span>';
-    return '<div class="product-card" onclick="location.href=\'pages/product-detail.html?id=' + p.id + '\'"><div class="product-img"><img src="' + img + '" alt="' + escHtml(p.title) + '" loading="lazy" onerror="this.src=\'https://picsum.photos/seed/fb' + p.id + '/300/300\'">' + tags + '</div><div class="product-info"><div class="product-name">' + escHtml(p.title) + '</div><div class="product-price-row"><span class="product-price"><span class="product-price-symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="product-ori-price">¥' + p.oriPrice + '</span>' : '') + '</div><div class="product-meta"><span>' + escHtml(p.sellerName) + '</span><span>👁 ' + p.viewCount + '</span></div></div></div>';
+    var rating = (typeof p.ratingAvg === 'number') ? p.ratingAvg : 5;
+    var sold = p.sold30d || 0;
+    return '<div class="product-card" onclick="location.href=\'pages/product-detail.html?id=' + p.id + '\'"><div class="product-img"><img src="' + img + '" alt="' + escHtml(p.title) + '" loading="lazy" onerror="this.src=\'https://picsum.photos/seed/fb' + p.id + '/300/300\'">' + tags + '</div><div class="product-info"><div class="product-name">' + escHtml(p.title) + '</div><div class="product-price-row"><span class="product-price"><span class="product-price-symbol">¥</span>' + p.price + '</span>' + (p.oriPrice > p.price ? '<span class="product-ori-price">¥' + p.oriPrice + '</span>' : '') + '</div><div class="product-meta"><span>' + escHtml(p.sellerName) + '</span><span>⭐ ' + rating.toFixed(1) + '</span><span>月售 ' + sold + '</span></div></div></div>';
   }).join('');
 }
 

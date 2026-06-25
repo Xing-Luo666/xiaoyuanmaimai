@@ -66,11 +66,12 @@ async function loadShopInfo() {
       return;
     }
     var info = res.data;
-    var avg = info.ratingAvg || 5;
-    var cnt = info.ratingCount || 0;
+    var avg = info.shopRating || 5;
+    var cnt = info.reviewCount || 0;
     var pcnt = info.productCount || 0;
-    var avatarHTML = info.avatar
-      ? '<img src="' + resolveAvatar(info.avatar) + '" onerror="this.style.display=\'none\'">'
+    var sold = info.sold30d || 0;
+    var avatarHTML = info.sellerAvatar
+      ? '<img src="' + resolveAvatar(info.sellerAvatar) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + (info.sellerName ? info.sellerName[0].toUpperCase() : 'U') + '\'">'
       : (info.sellerName ? info.sellerName[0].toUpperCase() : 'U');
     var user = api.getUser();
     var isSelf = user && user.userId === shopId;
@@ -85,6 +86,7 @@ async function loadShopInfo() {
             '<span class="stat-block"><span class="badge">⭐ ' + avg.toFixed(1) + '</span></span>' +
             '<span class="stat-block">' + (cnt > 0 ? cnt + ' 人评分' : '暂无评分') + '</span>' +
             '<span class="stat-block">📦 ' + pcnt + ' 件商品</span>' +
+            '<span class="stat-block">🔥 近30天售 ' + sold + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="shop-actions">' + contactBtn + '</div>' +
@@ -98,11 +100,16 @@ async function loadShopProducts() {
   try {
     var res = await api.getShopProducts(shopId);
     var el = document.getElementById('shopProducts');
-    if (res.code !== 200 || !res.data || !res.data.length) {
+    if (res.code !== 200 || !res.data || !res.data.list) {
       el.innerHTML = '<div class="empty-state"><div style="font-size:48px;opacity:.7">📦</div><p style="margin-top:12px;color:#6b7280">店铺暂无在售商品</p></div>';
       return;
     }
-    el.innerHTML = '<div class="product-grid">' + res.data.map(function(p) {
+    var list = res.data.list || [];
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-state"><div style="font-size:48px;opacity:.7">📦</div><p style="margin-top:12px;color:#6b7280">店铺暂无在售商品</p></div>';
+      return;
+    }
+    el.innerHTML = '<div class="product-grid">' + list.map(function(p) {
       var img = (p.images && p.images.length) ? p.images[0] : '/resources/default-product.gif';
       var rating = p.ratingAvg || 5;
       var sold = p.sold30d || 0;
