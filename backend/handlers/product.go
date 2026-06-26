@@ -154,6 +154,9 @@ func (h *ProductHandler) Get(c *gin.Context) {
 		p.ViewCount++
 	}
 
+	// 附加评分与30天销量（与列表接口保持一致）
+	attachRatingAndSold(db, &p)
+
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "成功", Data: p})
 }
 
