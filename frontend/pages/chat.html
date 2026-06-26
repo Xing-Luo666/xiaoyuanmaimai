@@ -6,15 +6,22 @@
 <title>聊天 — 校园二手交易</title>
 <link rel="stylesheet" href="../css/mall.css">
 <style>
-.chat-wrap { max-width:700px; margin:0 auto; height:calc(100vh - 90px); display:flex; flex-direction:column }
-.chat-inner-header { padding:12px 16px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:12px; flex-shrink:0 }
+.chat-wrap { max-width:700px; margin:0 auto; height:calc(100vh - 150px); display:flex; flex-direction:column; min-height:400px }
+.chat-inner-header { padding:10px 16px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:12px; flex-shrink:0 }
+.chat-peer-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; overflow:hidden }
+.chat-peer-avatar img { width:100%; height:100%; object-fit:cover }
 .chat-inner-header .back-btn { font-size:20px; color:#374151; text-decoration:none; cursor:pointer; padding:4px; line-height:1 }
 .chat-inner-header .back-btn:hover { color:#2563eb }
 .chat-msgs { flex:1; overflow-y:auto; padding:16px; background:#f9fafb; display:flex; flex-direction:column; gap:8px }
 .chat-msgs .loading-more { text-align:center; padding:12px; color:#9ca3af; font-size:12px; display:none }
-.chat-msg { max-width:75%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; word-break:break-word; position:relative }
-.chat-msg.mine { align-self:flex-end; background:#2563eb; color:#fff; border-bottom-right-radius:4px }
-.chat-msg.other { align-self:flex-start; background:#fff; border:1px solid #e5e7eb; border-bottom-left-radius:4px }
+.chat-msg-row { display:flex; align-items:flex-end; gap:8px; max-width:80% }
+.chat-msg-row.mine { align-self:flex-end; flex-direction:row-reverse }
+.chat-msg-row.other { align-self:flex-start }
+.chat-msg-row .row-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; flex-shrink:0; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; overflow:hidden }
+.chat-msg-row .row-avatar img { width:100%; height:100%; object-fit:cover }
+.chat-msg { padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; word-break:break-word; position:relative; min-width:0 }
+.chat-msg.mine { background:#2563eb; color:#fff; border-bottom-right-radius:4px }
+.chat-msg.other { background:#fff; border:1px solid #e5e7eb; border-bottom-left-radius:4px }
 .chat-msg .sender { font-size:11px; color:#6b7280; margin-bottom:4px }
 .chat-msg.mine .sender { color:#93c5fd }
 .chat-msg .time { font-size:11px; opacity:0.7; margin-top:4px }
@@ -48,6 +55,7 @@
 <div id="siteHeaderPlaceholder"></div>
 <div class="chat-wrap">
   <div class="chat-inner-header">
+    <div class="chat-peer-avatar" id="peerAvatar"></div>
     <div style="flex:1"><b id="chatTitle" style="font-size:16px">聊天</b><div style="font-size:11px;color:#6b7280" id="orderInfo"></div></div>
   </div>
   <div class="chat-msgs" id="chatMsgs">
@@ -90,6 +98,8 @@ var hasMore = false;    // 是否还有更多历史消息
 var isLoadingMore = false;
 var viewerZoom = 100;   // 图片查看器缩放百分比
 var viewerSrc = '';     // 当前查看的图片URL
+var peerAvatarUrl = ''; // 对方头像URL
+var myAvatarUrl = '';   // 自己的头像URL
 
 (function() {
   api.verifyAndInit().then(function(ok) {
@@ -145,6 +155,13 @@ async function loadHistory(before) {
   var data = res.data;
   var newMsgs = (data.messages || data || []);
   hasMore = data.hasMore || false;
+
+  // 首次加载时保存头像信息
+  if (!before) {
+    peerAvatarUrl = data.peerAvatar || '';
+    myAvatarUrl = data.myAvatar || '';
+    renderPeerAvatar();
+  }
 
   if (newMsgs.length === 0) return;
 
@@ -241,6 +258,29 @@ function handleFiles(files) {
   }
 }
 
+function renderPeerAvatar() {
+  var el = document.getElementById('peerAvatar');
+  if (!el) return;
+  var initial = (peerName || '?')[0].toUpperCase();
+  if (peerAvatarUrl) {
+    var url = peerAvatarUrl;
+    if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
+    el.innerHTML = '<img src="' + escAttr(url) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + initial + '\'">';
+  } else {
+    el.textContent = initial;
+  }
+}
+
+function avatarHTML(isMine) {
+  var url = isMine ? myAvatarUrl : peerAvatarUrl;
+  var initial = isMine ? '' : (peerName || '?')[0].toUpperCase();
+  if (url) {
+    if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
+    return '<div class="row-avatar"><img src="' + escAttr(url) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + initial + '\'"></div>';
+  }
+  return '<div class="row-avatar">' + initial + '</div>';
+}
+
 function renderMessages() {
   var container = document.getElementById('chatMsgs');
   var wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
@@ -266,11 +306,13 @@ function renderMessages() {
       if (isMine && !m.recalled) {
         actions = '<div class="actions"><button onclick="recallMsg(\''+m.id+'\')">撤回</button><button onclick="deleteMsg(\''+m.id+'\')">删除</button></div>';
       }
-      return '<div class="chat-msg '+(isMine?'mine':'other')+'">' +
+      return '<div class="chat-msg-row '+(isMine?'mine':'other')+'">' +
+        avatarHTML(isMine) +
+        '<div class="chat-msg '+(isMine?'mine':'other')+'">' +
         '<div class="sender">'+(isMine?'我':escHtml(m.senderName||''))+'</div>' +
         content +
         '<div class="time">'+formatDate(m.createdAt)+'</div>' +
-        actions + '</div>';
+        actions + '</div></div>';
     }).join('');
 
   if (wasAtBottom) {

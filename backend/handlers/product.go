@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -528,4 +529,226 @@ func scanProductRow(row *sql.Row) (models.Product, error) {
 		p.Specs = []models.ProductSpec{}
 	}
 	return p, nil
+}
+
+// Recommend 基于用户行为（浏览/购买/购物车/收藏）推荐商品
+// 算法：按行为权重给分类打分，优先推荐高分分类的在售商品；
+// 支持 seed 参数实现"换一批"刷新功能
+func (h *ProductHandler) Recommend(c *gin.Context) {
+	userID := c.GetString("userId")
+	db := h.Store.GetDB()
+
+	// 行为权重
+	const (
+		wBrowse = 1 // 浏览历史
+		wFav    = 2 // 收藏
+		wCart   = 3 // 购物车
+		wBuy    = 5 // 购买
+	)
+
+	// 收集用户各分类的行为得分
+	catScore := map[string]int{}
+
+	// 1. 浏览历史
+	rows, _ := db.Query(`SELECT p.category, COUNT(*) FROM history h JOIN products p ON h.product_id = p.id WHERE h.user_id = ? GROUP BY p.category`, userID)
+	if rows != nil {
+		for rows.Next() {
+			var cat string
+			var cnt int
+			rows.Scan(&cat, &cnt)
+			catScore[cat] += cnt * wBrowse
+		}
+		rows.Close()
+	}
+
+	// 2. 收藏
+	rows, _ = db.Query(`SELECT p.category, COUNT(*) FROM favorites f JOIN products p ON f.product_id = p.id WHERE f.user_id = ? GROUP BY p.category`, userID)
+	if rows != nil {
+		for rows.Next() {
+			var cat string
+			var cnt int
+			rows.Scan(&cat, &cnt)
+			catScore[cat] += cnt * wFav
+		}
+		rows.Close()
+	}
+
+	// 3. 购物车
+	rows, _ = db.Query(`SELECT p.category, COUNT(*) FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = ? GROUP BY p.category`, userID)
+	if rows != nil {
+		for rows.Next() {
+			var cat string
+			var cnt int
+			rows.Scan(&cat, &cnt)
+			catScore[cat] += cnt * wCart
+		}
+		rows.Close()
+	}
+
+	// 4. 购买记录
+	rows, _ = db.Query(`SELECT p.category, COUNT(*) FROM orders o JOIN products p ON o.product_id = p.id WHERE o.buyer_id = ? GROUP BY p.category`, userID)
+	if rows != nil {
+		for rows.Next() {
+			var cat string
+			var cnt int
+			rows.Scan(&cat, &cnt)
+			catScore[cat] += cnt * wBuy
+		}
+		rows.Close()
+	}
+
+	// 构建分类排序（得分降序）
+	type catRank struct {
+		Cat   string
+		Score int
+	}
+	var ranks []catRank
+	for cat, sc := range catScore {
+		ranks = append(ranks, catRank{cat, sc})
+	}
+	sort.SliceStable(ranks, func(i, j int) bool { return ranks[i].Score > ranks[j].Score })
+
+	// seed 参数用于刷新（换一批），每次刷新改变随机偏移
+	seedStr := c.DefaultQuery("seed", "0")
+	seed, _ := strconv.Atoi(seedStr)
+	if seed < 0 {
+		seed = 0
+	}
+
+	// 排除用户自己的商品，只推荐在售商品
+	baseQuery := `SELECT id, title, description, category, price, ori_price, images, specs, cond, campus, building, seller_id, seller_name, status, view_count, like_count, fav_count, created_at, updated_at FROM products WHERE status = 'selling' AND seller_id != ?`
+	baseArgs := []interface{}{userID}
+
+	var products []models.Product
+	seenIDs := map[string]bool{}
+
+	// 用 seed 创建确定性随机数生成器，实现"换一批"
+	rng := rand.New(rand.NewSource(int64(seed)))
+
+	if len(ranks) > 0 {
+		// 有行为数据：按分类偏好加权查询
+		// 取得分最高的前3个分类
+		topCats := ranks
+		if len(topCats) > 3 {
+			topCats = topCats[:3]
+		}
+
+		// 查询每个偏好分类的所有在售商品，在应用层用 seed 打乱顺序
+		for idx, r := range topCats {
+			q := baseQuery + " AND category = ? ORDER BY view_count DESC, created_at DESC"
+			args := append(baseArgs, r.Cat)
+			rows, err := db.Query(q, args...)
+			if err != nil {
+				continue
+			}
+			var catProducts []models.Product
+			for rows.Next() {
+				p, err := scanProduct(rows)
+				if err != nil {
+					continue
+				}
+				if !seenIDs[p.ID] {
+					attachRatingAndSold(db, &p)
+					catProducts = append(catProducts, p)
+				}
+			}
+			rows.Close()
+			// 用 seed+idx 打乱该分类的商品顺序
+			catRng := rand.New(rand.NewSource(int64(seed*100 + idx)))
+			catRng.Shuffle(len(catProducts), func(i, j int) { catProducts[i], catProducts[j] = catProducts[j], catProducts[i] })
+			// 每个偏好分类最多取 3 个
+			take := 3
+			if take > len(catProducts) {
+				take = len(catProducts)
+			}
+			for k := 0; k < take; k++ {
+				products = append(products, catProducts[k])
+				seenIDs[catProducts[k].ID] = true
+			}
+		}
+
+		// 从所有在售商品中补足到 8 个
+		if len(products) < 8 {
+			// 查询所有未推荐过的在售商品
+			excludeIDs := ""
+			excludeArgs := []interface{}{}
+			for id := range seenIDs {
+				if excludeIDs != "" {
+					excludeIDs += ","
+				}
+				excludeIDs += "?"
+				excludeArgs = append(excludeArgs, id)
+			}
+			fillQuery := baseQuery
+			fillArgs := append([]interface{}{userID}, excludeArgs...)
+			if excludeIDs != "" {
+				fillQuery += " AND id NOT IN (" + excludeIDs + ")"
+			}
+			fillQuery += " ORDER BY view_count DESC, created_at DESC"
+			rows, err := db.Query(fillQuery, fillArgs...)
+			if err == nil {
+				var fillProducts []models.Product
+				for rows.Next() {
+					p, err := scanProduct(rows)
+					if err != nil {
+						continue
+					}
+					attachRatingAndSold(db, &p)
+					fillProducts = append(fillProducts, p)
+				}
+				rows.Close()
+				// 用 seed 打乱补足商品
+				rng.Shuffle(len(fillProducts), func(i, j int) { fillProducts[i], fillProducts[j] = fillProducts[j], fillProducts[i] })
+				need := 8 - len(products)
+				if need > len(fillProducts) {
+					need = len(fillProducts)
+				}
+				for k := 0; k < need; k++ {
+					products = append(products, fillProducts[k])
+				}
+			}
+		}
+	}
+
+	// 无行为数据或推荐结果为空：从所有在售商品随机取 8 个
+	if len(products) == 0 {
+		q := baseQuery + " ORDER BY view_count DESC, created_at DESC"
+		rows, err := db.Query(q, baseArgs)
+		if err == nil {
+			var allProducts []models.Product
+			for rows.Next() {
+				p, err := scanProduct(rows)
+				if err != nil {
+					continue
+				}
+				attachRatingAndSold(db, &p)
+				allProducts = append(allProducts, p)
+			}
+			rows.Close()
+			rng.Shuffle(len(allProducts), func(i, j int) { allProducts[i], allProducts[j] = allProducts[j], allProducts[i] })
+			take := 8
+			if take > len(allProducts) {
+				take = len(allProducts)
+			}
+			products = allProducts[:take]
+		}
+	}
+
+	// 最后再打乱一次顺序，让偏好分类商品不总是排在前面
+	rng.Shuffle(len(products), func(i, j int) { products[i], products[j] = products[j], products[i] })
+
+	if products == nil {
+		products = []models.Product{}
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Code:    200,
+		Message: "成功",
+		Data: models.PageData{
+			List:     products,
+			Total:    len(products),
+			Page:     1,
+			PageSize: 8,
+		},
+	})
 }

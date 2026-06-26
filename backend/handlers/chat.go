@@ -621,7 +621,20 @@ func (h *ChatHandler) ChatHistoryPeer(c *gin.Context) {
 
 	hasMore := rawCount >= limit
 
-	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"messages": msgs, "hasMore": hasMore}})
+	// 获取双方头像，供前端在聊天头部和消息气泡旁显示
+	peerID := ""
+	if parts := strings.SplitN(peerKey, ":", 2); len(parts) == 2 {
+		if parts[0] == userID {
+			peerID = parts[1]
+		} else {
+			peerID = parts[0]
+		}
+	}
+	var peerAvatar, myAvatar string
+	db.QueryRow("SELECT COALESCE(avatar,'') FROM users WHERE id = ?", peerID).Scan(&peerAvatar)
+	db.QueryRow("SELECT COALESCE(avatar,'') FROM users WHERE id = ?", userID).Scan(&myAvatar)
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"messages": msgs, "hasMore": hasMore, "peerAvatar": peerAvatar, "peerId": peerID, "myAvatar": myAvatar}})
 }
 
 // ChatWSPeer WebSocket 连接（通过 peer_key，不依赖订单）

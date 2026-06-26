@@ -257,6 +257,7 @@ func main() {
 			auth.POST("/user/avatar", userHandler.UploadAvatar)
 
 			auth.GET("/products/my", productHandler.MyProducts)
+			auth.GET("/products/recommend", productHandler.Recommend)
 			auth.GET("/shops/:id/products", productHandler.ShopProducts)
 			auth.POST("/products", productHandler.Create)
 			auth.POST("/upload", productHandler.UploadImage)

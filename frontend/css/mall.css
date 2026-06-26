@@ -289,6 +289,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
   transition: color .2s
 }
 .section-more:hover { color: var(--primary) }
+.refresh-btn {
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all .2s;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: var(--primary-light);
+  user-select: none;
+  white-space: nowrap;
+}
+.refresh-btn:hover { background: var(--primary); color: #fff }
+.refresh-btn:active { transform: scale(0.95) }
 
 /* ===== 分类网格 ===== */
 .cat-grid {
@@ -540,7 +553,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .profile-wrap { max-width:1060px; margin:20px auto; padding:0 20px; display:grid; grid-template-columns:220px 1fr; gap:20px }
 .profile-sidebar { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); overflow:hidden; height:fit-content; position:sticky; top:100px }
 .profile-header { padding:24px 16px; text-align:center; border-bottom:1px solid var(--border) }
-.profile-avatar { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 10px; font-size:24px; font-weight:700 }
+.profile-avatar { width:80px; height:80px; border-radius:50%; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 10px; font-size:28px; font-weight:700; overflow:hidden; flex-shrink:0 }
 .profile-name { font-size:15px; font-weight:600 }
 .profile-role { font-size:12px; color:var(--text-light); margin-top:4px }
 .profile-menu { padding:6px 0 }

@@ -108,7 +108,10 @@
 <div class="section-wrap">
   <div class="section-header">
     <div class="section-title">🔥 推荐商品</div>
-    <div class="section-more" onclick="location.href='pages/products.html'">查看更多 →</div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="refresh-btn" onclick="loadRecommended(true)" title="换一批推荐">🔄 换一批</div>
+      <div class="section-more" onclick="location.href='pages/products.html'">查看更多 →</div>
+    </div>
   </div>
   <div class="product-grid" id="recommendGrid"></div>
 </div>
@@ -294,11 +297,35 @@ function doSearch() {
   location.href = 'pages/products.html?keyword=' + encodeURIComponent(kw);
 }
 
-function loadRecommended() {
-  api.get('/products', { status: 'selling', sortBy: 'popular' }).then(function(res) {
-    if (res.code !== 200) return;
-    renderProductGrid('recommendGrid', res.data.list, true);
-  }).catch(function() {});
+var recommendSeed = 0;
+function loadRecommended(refresh) {
+  if (refresh) {
+    recommendSeed++;
+    var grid = document.getElementById('recommendGrid');
+    grid.style.opacity = '0.5';
+  }
+  // 优先调用个性化推荐接口；未登录时回退到热门商品
+  var url = '/products/recommend?seed=' + recommendSeed;
+  api.get(url).then(function(res) {
+    if (res.code === 200 && res.data && res.data.list && res.data.list.length) {
+      renderProductGrid('recommendGrid', res.data.list, true);
+    } else {
+      // 回退：调热门商品接口
+      return api.get('/products', { status: 'selling', sortBy: 'popular' }).then(function(r) {
+        if (r.code === 200) renderProductGrid('recommendGrid', r.data.list, true);
+      });
+    }
+  }).catch(function() {
+    // 未登录或接口异常：回退到热门商品
+    api.get('/products', { status: 'selling', sortBy: 'popular' }).then(function(r) {
+      if (r.code === 200) renderProductGrid('recommendGrid', r.data.list, true);
+    }).catch(function() {});
+  }).finally(function() {
+    if (refresh) {
+      var grid = document.getElementById('recommendGrid');
+      grid.style.opacity = '1';
+    }
+  });
 }
 
 function loadNewest() {
