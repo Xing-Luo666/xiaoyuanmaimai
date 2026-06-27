@@ -249,6 +249,42 @@ const api = {
     });
     return await res.json();
   },
+  async deleteAvatar() { return this.del('/user/avatar'); },
+
+  // 生成带首字母的默认头像 SVG data URI（字母作为图片内部内容）
+  // 这样默认头像就是真正的图片，而非 CSS 外部文字
+  generateDefaultAvatar(username) {
+    var name = String(username || 'U');
+    var letter = name[0].toUpperCase();
+    // 颜色基于用户名 hash 生成，让不同用户有不同颜色
+    var hash = 0;
+    for (var i = 0; i < name.length; i++) {
+      hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+    }
+    var hue = Math.abs(hash) % 360;
+    var color1 = 'hsl(' + hue + ',65%,55%)';
+    var color2 = 'hsl(' + ((hue + 40) % 360) + ',65%,40%)';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">' +
+      '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">' +
+      '<stop offset="0%" stop-color="' + color1 + '"/>' +
+      '<stop offset="100%" stop-color="' + color2 + '"/>' +
+      '</linearGradient></defs>' +
+      '<rect width="80" height="80" fill="url(#g)"/>' +
+      '<text x="50%" y="50%" dy=".35em" text-anchor="middle" dominant-baseline="middle" ' +
+      'font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#fff">' +
+      letter +
+      '</text></svg>';
+    // 使用 encodeURIComponent 确保 SVG 特殊字符不破坏 data URI
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  },
+
+  // 解析头像 URL：返回最终可用的 URL（默认头像返回动态 SVG data URI）
+  resolveAvatarUrl(avatar, username) {
+    if (avatar && avatar.trim() !== '' && avatar !== '/resources/default-avatar.svg') {
+      return avatar;
+    }
+    return this.generateDefaultAvatar(username);
+  },
 
   // 订单分页（6板块）
   async getOrdersByTab(role, tab) {

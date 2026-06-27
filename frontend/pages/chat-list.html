@@ -71,14 +71,10 @@
           : '';
         var timeStr = formatTime(c.lastTime);
         var initial = (c.peerName || '?')[0].toUpperCase();
-        var avatarHTML;
-        if (c.peerAvatar) {
-          var url = c.peerAvatar;
-          if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
-          avatarHTML = '<img src="' + escHtml(url) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + initial + '\'">';
-        } else {
-          avatarHTML = initial;
-        }
+        // 统一用动态 SVG 头像（含首字母）作为默认
+        var avatarUrl = api.resolveAvatarUrl(c.peerAvatar, c.peerName);
+        var fallbackUrl = api.generateDefaultAvatar(c.peerName).replace(/'/g, '%27');
+        var avatarHTML = '<img src="' + escHtml(avatarUrl) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.src=\'' + fallbackUrl + '\'">';
         return '<div class="conv-item" onclick="openChat(\'' + c.peerKey + '\', \'' + escHtml(c.peerName || '用户') + '\')">' +
           '<div class="conv-avatar">' + avatarHTML + '</div>' +
           '<div class="conv-info">' +

@@ -453,9 +453,11 @@ async function loadSellerInfo(sellerId) {
     if (res.code !== 200 || !res.data) return;
     var info = res.data;
     var avatarEl = document.getElementById('sellerAvatar');
-    var avatarUrl = info.sellerAvatar;
-    if (avatarEl && avatarUrl) {
-      avatarEl.innerHTML = '<img src="' + resolveAvatar(avatarUrl) + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + (info.sellerName ? info.sellerName[0].toUpperCase() : 'U') + '\'">';
+    if (avatarEl) {
+      // 统一用 resolveAvatarUrl：默认头像显示带首字母的动态 SVG
+      var url = api.resolveAvatarUrl(info.sellerAvatar, info.sellerName);
+      var fallbackUrl = api.generateDefaultAvatar(info.sellerName).replace(/'/g, '%27');
+      avatarEl.innerHTML = '<img src="' + escHtml(url) + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover" onerror="this.src=\'' + fallbackUrl + '\'">';
     }
     var statsEl = document.getElementById('sellerStats');
     if (statsEl) {
@@ -524,7 +526,7 @@ function renderReviewItem(r) {
   }
   return '<div class="review-item">' +
     '<div class="review-user">' +
-      '<img class="review-avatar" src="' + resolveAvatar(r.reviewerAvatar) + '" onerror="this.src=\'/resources/default-avatar.svg\'">' +
+      '<img class="review-avatar" src="' + escHtml(api.resolveAvatarUrl(r.reviewerAvatar, r.reviewerName)) + '" onerror="this.src=\'' + api.generateDefaultAvatar(r.reviewerName).replace(/'/g, '%27') + '\'">' +
       '<div class="review-user-meta">' +
         '<div class="review-username">' + escHtml(r.reviewerName || '匿名用户') + (r.specName ? '<span class="review-spec">' + escHtml(r.specName) + '</span>' : '') + '</div>' +
         '<div class="review-time">' + formatDate(r.createdAt) + '</div>' +

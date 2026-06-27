@@ -472,7 +472,10 @@ async function submitForm() {
 function closeModal() {
   var overlay = document.getElementById('modalOverlay');
   overlay.classList.remove('show');
-  overlay.style.display = 'none';
+  // 清除可能残留的 inline display，避免与 .modal-overlay.show 的 display:flex 冲突
+  overlay.style.display = '';
+  delete overlay.dataset.action;
+  delete overlay.dataset.id;
   editingRow = null;
 }
 
@@ -513,7 +516,7 @@ async function loadBannerAdmin() {
   document.getElementById('tableTitle').textContent = '轮播卡片管理';
   document.getElementById('addBtn').style.display = 'inline-flex';
   document.getElementById('addBtn').textContent = '+ 新增卡片';
-  document.getElementById('addBtn').onclick = openBannerModal;
+  document.getElementById('addBtn').onclick = function() { openBannerModal(); };
   var area = document.getElementById('dataArea');
 
   var data = await apiFetch('/admin/banners');
@@ -546,21 +549,21 @@ function openBannerModal(id) {
     var banners = window._bannerData || [];
     var b = banners.find(function(x) { return x.id === id; }) || {};
     form.innerHTML =
-      '<input type="hidden" name="id" value="' + (b.id || '') + '">' +
+      '<input type="hidden" name="id" value="' + escHtml(b.id || '') + '">' +
       buildField('title', '标题', b.title || '') +
       buildField('subtitle', '副标题', b.subtitle || '') +
-      buildField('imageUrl', '图片链接', b.imageUrl || '') +
+      buildImageField('imageUrl', '图片', b.imageUrl || '') +
       buildField('linkUrl', '跳转链接', b.linkUrl || '') +
       buildField('sortOrder', '排序序号', b.sortOrder || 0);
   } else {
     form.innerHTML =
       buildField('title', '标题', '') +
       buildField('subtitle', '副标题', '') +
-      buildField('imageUrl', '图片链接', '') +
+      buildImageField('imageUrl', '图片', '') +
       buildField('linkUrl', '跳转链接', '') +
       buildField('sortOrder', '排序序号', '0');
   }
-  document.getElementById('modalOverlay').style.display = 'flex';
+  document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('modalOverlay').dataset.action = 'saveBanner';
   document.getElementById('modalOverlay').dataset.id = id || '';
 }
@@ -612,7 +615,72 @@ submitForm = async function() {
 function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 
 function buildField(name, label, value) {
-  return '<div style="margin-bottom:10px"><label style="display:block;font-size:13px;color:#64748b;margin-bottom:4px">' + label + '</label><input name="' + name + '" value="' + (value || '') + '" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px"></div>';
+  return '<div style="margin-bottom:10px"><label style="display:block;font-size:13px;color:#64748b;margin-bottom:4px">' + label + '</label><input name="' + name + '" value="' + escHtml(value || '') + '" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px"></div>';
+}
+
+// 带图片上传按钮的字段：点击按钮选图，调用 /api/upload 上传后回填 URL
+function buildImageField(name, label, value) {
+  return '<div style="margin-bottom:10px">' +
+    '<label style="display:block;font-size:13px;color:#64748b;margin-bottom:4px">' + label + '</label>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+      '<input name="' + name + '" value="' + escHtml(value || '') + '" placeholder="可填图片地址，或点右侧按钮上传" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">' +
+      '<button type="button" class="btn btn-outline btn-sm" onclick="uploadBannerImage(this)" style="white-space:nowrap">选择图片</button>' +
+    '</div>' +
+    '<div class="banner-preview" style="margin-top:6px;display:' + (value ? 'block' : 'none') + '"><img src="' + escHtml(value || '') + '" style="max-width:200px;max-height:80px;border-radius:6px;border:1px solid #e2e8f0"></div>' +
+  '</div>';
+}
+
+// 上传轮播图图片
+async function uploadBannerImage(btn) {
+  var input = btn.parentElement.querySelector('input[name]');
+  if (!input) return;
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  fileInput.click();
+  fileInput.onchange = async function() {
+    var file = fileInput.files[0];
+    if (!file) { document.body.removeChild(fileInput); return; }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('图片大小不能超过 10MB', 'error');
+      document.body.removeChild(fileInput);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '上传中...';
+    try {
+      var fd = new FormData();
+      fd.append('image', file);
+      var token = getToken();
+      var res = await fetch(API_BASE + '/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd
+      });
+      var data = await res.json();
+      if (data && data.code === 200 && data.data && data.data.url) {
+        input.value = data.data.url;
+        // 更新预览：从 input 向上找到字段容器，再查找 .banner-preview
+        var fieldWrap = input.closest('div[style*="margin-bottom"]');
+        var preview = fieldWrap ? fieldWrap.querySelector('.banner-preview') : null;
+        if (preview) {
+          preview.style.display = 'block';
+          preview.innerHTML = '<img src="' + escHtml(data.data.url) + '" style="max-width:200px;max-height:80px;border-radius:6px;border:1px solid #e2e8f0">';
+        }
+        showToast('上传成功');
+      } else {
+        showToast((data && data.message) || '上传失败', 'error');
+      }
+    } catch (e) {
+      showToast('上传失败：' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '选择图片';
+      document.body.removeChild(fileInput);
+    }
+  };
 }
 
 init();

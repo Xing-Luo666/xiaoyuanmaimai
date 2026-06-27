@@ -144,6 +144,36 @@ func (h *SocialHandler) CartUpdate(c *gin.Context) {
 	}
 	db := h.Store.GetDB()
 	if req.Quantity > 0 {
+		// 库存校验：与 CartAdd 保持一致
+		var productID, specName, productStatus string
+		var specsNS sql.NullString
+		err := db.QueryRow("SELECT product_id, spec_name, (SELECT status FROM products WHERE id = cart_items.product_id), (SELECT specs FROM products WHERE id = cart_items.product_id) FROM cart_items WHERE id = ? AND user_id = ?", itemID, userID).Scan(&productID, &specName, &productStatus, &specsNS)
+		if err != nil {
+			c.JSON(http.StatusNotFound, models.APIResponse{Code: 404, Message: "购物车项不存在"})
+			return
+		}
+		if productStatus != "" && productStatus != "selling" {
+			c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "商品已下架或已售罄"})
+			return
+		}
+		if specName != "" && specsNS.Valid && specsNS.String != "" && specsNS.String != "null" {
+			var specs []models.ProductSpec
+			if json.Unmarshal([]byte(specsNS.String), &specs) == nil {
+				for _, s := range specs {
+					if s.Name == specName || s.ID == specName {
+						if s.Stock == 0 {
+							c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "该规格已售罄"})
+							return
+						}
+						if s.Stock > 0 && s.Stock < req.Quantity {
+							c.JSON(http.StatusBadRequest, models.APIResponse{Code: 400, Message: "库存不足，仅剩 " + fmt.Sprintf("%d", s.Stock) + " 件"})
+							return
+						}
+						break
+					}
+				}
+			}
+		}
 		db.Exec("UPDATE cart_items SET quantity = ? WHERE id = ? AND user_id = ?", req.Quantity, itemID, userID)
 	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "更新成功"})
@@ -213,26 +243,48 @@ func (h *SocialHandler) FavoriteToggle(c *gin.Context) {
 	}
 
 	db := h.Store.GetDB()
+	// 使用事务保证 favorites 与 products.fav_count 一致
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "操作失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	var existID string
-	err := db.QueryRow("SELECT id FROM favorites WHERE user_id = ? AND product_id = ?", userID, req.ProductID).Scan(&existID)
+	err = tx.QueryRow("SELECT id FROM favorites WHERE user_id = ? AND product_id = ?", userID, req.ProductID).Scan(&existID)
 	if err == nil {
-		if _, err := db.Exec("DELETE FROM favorites WHERE id = ?", existID); err != nil {
+		if _, err := tx.Exec("DELETE FROM favorites WHERE id = ?", existID); err != nil {
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "操作失败"})
 			return
 		}
-		db.Exec("UPDATE products SET fav_count = GREATEST(fav_count - 1, 0) WHERE id = ?", req.ProductID)
+		tx.Exec("UPDATE products SET fav_count = GREATEST(fav_count - 1, 0) WHERE id = ?", req.ProductID)
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "操作失败"})
+			return
+		}
 		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已取消收藏", Data: gin.H{"favorited": false}})
 		return
 	}
 
 	id := genID("fav")
 	now := time.Now()
-	if _, err := db.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+	if _, err := tx.Exec("INSERT INTO favorites (id, user_id, product_id, product_title, product_image, price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		id, userID, req.ProductID, req.ProductTitle, req.ProductImage, req.Price, now); err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "收藏失败"})
 		return
 	}
-	db.Exec("UPDATE products SET fav_count = fav_count + 1 WHERE id = ?", req.ProductID)
+	tx.Exec("UPDATE products SET fav_count = fav_count + 1 WHERE id = ?", req.ProductID)
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "操作失败"})
+		return
+	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已收藏", Data: gin.H{"favorited": true}})
 }
 

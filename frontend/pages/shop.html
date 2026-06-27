@@ -70,9 +70,10 @@ async function loadShopInfo() {
     var cnt = info.reviewCount || 0;
     var pcnt = info.productCount || 0;
     var sold = info.sold30d || 0;
-    var avatarHTML = info.sellerAvatar
-      ? '<img src="' + resolveAvatar(info.sellerAvatar) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + (info.sellerName ? info.sellerName[0].toUpperCase() : 'U') + '\'">'
-      : (info.sellerName ? info.sellerName[0].toUpperCase() : 'U');
+    // 统一用动态 SVG 头像（含首字母）作为默认
+    var _avatarUrl = api.resolveAvatarUrl(info.sellerAvatar, info.sellerName);
+    var _fallbackUrl = api.generateDefaultAvatar(info.sellerName).replace(/'/g, '%27');
+    var avatarHTML = '<img src="' + escHtml(_avatarUrl) + '" onerror="this.src=\'' + _fallbackUrl + '\'">';
     var user = api.getUser();
     var isSelf = user && user.userId === shopId;
     var contactBtn = isSelf ? '' : '<button class="mall-btn mall-btn-primary" onclick="contactSeller()">💬 联系卖家</button>';

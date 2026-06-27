@@ -333,7 +333,46 @@ func (h *ProductHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	db.Exec("DELETE FROM products WHERE id = ?", id)
+	// 删除商品及其关联数据（事务保证一致性）
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if _, err := tx.Exec("DELETE FROM favorites WHERE product_id = ?", id); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除收藏失败"})
+		return
+	}
+	if _, err := tx.Exec("DELETE FROM cart_items WHERE product_id = ?", id); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除购物车项失败"})
+		return
+	}
+	if _, err := tx.Exec("DELETE FROM history WHERE product_id = ?", id); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除浏览历史失败"})
+		return
+	}
+	if _, err := tx.Exec("DELETE FROM reviews WHERE product_id = ?", id); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除评价失败"})
+		return
+	}
+	if _, err := tx.Exec("DELETE FROM products WHERE id = ?", id); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除商品失败"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "删除失败"})
+		return
+	}
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "删除成功"})
 }
 
@@ -440,7 +479,12 @@ func (h *ProductHandler) UploadImage(c *gin.Context) {
 	}
 
 	// 保存在 resources 目录
-	uploadDir := filepath.Join("..", "frontend", "resources")
+	// 兼容从 backend/ 或项目根目录启动两种情况
+	execDir, _ := os.Getwd()
+	uploadDir := filepath.Join(execDir, "..", "frontend", "resources")
+	if _, err := os.Stat(filepath.Join(execDir, "frontend")); err == nil {
+		uploadDir = filepath.Join(execDir, "frontend", "resources")
+	}
 	os.MkdirAll(uploadDir, 0755)
 
 	// 生成唯一文件名

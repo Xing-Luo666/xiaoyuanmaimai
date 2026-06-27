@@ -267,8 +267,12 @@ func (h *OrderHandler) MyOrders(c *gin.Context) {
 	case "refund":
 		statusFilter = "AND status IN ('rejected','cancelled')"
 	case "pending_review":
-		// 已完成且未评价（仅买家视角有意义）
-		extraJoin = "LEFT JOIN reviews r ON orders.id = r.order_id AND r.reviewer_id = orders.buyer_id"
+		// 已完成且当前角色未评价：buyer 查买家未评价，seller 查卖家未评价
+		if role == "seller" {
+			extraJoin = "LEFT JOIN reviews r ON orders.id = r.order_id AND r.reviewer_id = orders.seller_id"
+		} else {
+			extraJoin = "LEFT JOIN reviews r ON orders.id = r.order_id AND r.reviewer_id = orders.buyer_id"
+		}
 		statusFilter = "AND orders.status = 'completed' AND r.id IS NULL"
 	default:
 		statusFilter = ""
@@ -277,17 +281,18 @@ func (h *OrderHandler) MyOrders(c *gin.Context) {
 	var err error
 	var rows *sql.Rows
 
-	baseQuery := "SELECT id, product_id, product_title, product_image, spec_name, quantity, buyer_id, buyer_name, seller_id, seller_name, price, status, message, COALESCE(address_snapshot,''), shipped_at, created_at, updated_at FROM orders"
+	// 注意：JOIN reviews 后所有列名都需用 orders. 前缀限定，避免歧义错误
+	baseQuery := "SELECT orders.id, orders.product_id, orders.product_title, orders.product_image, orders.spec_name, orders.quantity, orders.buyer_id, orders.buyer_name, orders.seller_id, orders.seller_name, orders.price, orders.status, orders.message, COALESCE(orders.address_snapshot,''), orders.shipped_at, orders.created_at, orders.updated_at FROM orders"
 	if extraJoin != "" {
 		baseQuery += " " + extraJoin
 	}
 
-	ownerWhere := "WHERE buyer_id = ?"
+	ownerWhere := "WHERE orders.buyer_id = ?"
 	if role != "buyer" {
-		ownerWhere = "WHERE seller_id = ?"
+		ownerWhere = "WHERE orders.seller_id = ?"
 	}
 
-	fullQuery := baseQuery + " " + ownerWhere + " " + statusFilter + " ORDER BY created_at DESC"
+	fullQuery := baseQuery + " " + ownerWhere + " " + statusFilter + " ORDER BY orders.created_at DESC"
 	rows, err = db.Query(fullQuery, userID)
 
 	if err != nil {

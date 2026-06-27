@@ -153,11 +153,46 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	if avatar.Valid {
 		u.Avatar = avatar.String
 	}
-	if u.Avatar == "" {
-		u.Avatar = "/resources/default-avatar.svg" // 默认头像
-	}
+	// 不再强制设置默认头像，返回空字符串让前端动态生成带首字母的 SVG
+	// 前端通过 isDefaultAvatar 判断或 avatar 为空时生成 data URI
 
 	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: u})
+}
+
+// DeleteAvatar 删除用户头像（恢复默认）
+func (h *UserHandler) DeleteAvatar(c *gin.Context) {
+	userID := c.GetString("userId")
+	db := h.Store.GetDB()
+
+	// 查询原头像路径（用于删除文件）
+	var oldAvatar sql.NullString
+	_ = db.QueryRow("SELECT avatar FROM users WHERE id = ?", userID).Scan(&oldAvatar)
+
+	// 清空 avatar 字段
+	if _, err := db.Exec("UPDATE users SET avatar = '', updated_at = ? WHERE id = ?", time.Now(), userID); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "恢复默认头像失败"})
+		return
+	}
+
+	// 删除旧头像文件（仅删除用户上传的，不删除默认资源）
+	if oldAvatar.Valid && oldAvatar.String != "" {
+		oldPath := oldAvatar.String
+		// 仅删除 /resources/avatars/ 下的文件
+		if strings.HasPrefix(oldPath, "/resources/avatars/") {
+			fullPath := filepath.Join("..", "frontend", oldPath)
+			if _, err := os.Stat(fullPath); err == nil {
+				os.Remove(fullPath)
+			} else {
+				// 兼容从项目根目录启动
+				altPath := filepath.Join("frontend", oldPath)
+				if _, e := os.Stat(altPath); e == nil {
+					os.Remove(altPath)
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Code: 200, Message: "已恢复默认头像"})
 }
 
 // compressImageToSize 压缩图片到指定大小以内，返回 (字节数组, 扩展名, err)

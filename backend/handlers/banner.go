@@ -47,9 +47,15 @@ var defaultBanners = []Banner{
 // GetBanners 公开接口 — 返回轮播卡片列表
 func (h *BannerHandler) GetBanners(c *gin.Context) {
 	db := h.Store.GetDB()
+	// DB 未连接时直接返回默认卡片，避免 panic
+	if db == nil {
+		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: defaultBanners})
+		return
+	}
 	rows, err := db.Query("SELECT id, title, subtitle, image_url, link_url, sort_order, created_at, updated_at FROM banners ORDER BY sort_order ASC")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
+		// 查询失败时回退到默认卡片，保证首页轮播图可用
+		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: defaultBanners})
 		return
 	}
 	defer rows.Close()

@@ -15,13 +15,18 @@ import (
 )
 
 var allowedTables = map[string]bool{
-	"users":         true,
-	"products":      true,
-	"orders":        true,
-	"cart_items":    true,
-	"favorites":     true,
-	"history":       true,
-	"chat_messages": true,
+	"users":             true,
+	"products":          true,
+	"orders":            true,
+	"cart_items":        true,
+	"favorites":         true,
+	"history":           true,
+	"chat_messages":     true,
+	"chat_read_cursors": true,
+	"banners":           true,
+	"reviews":           true,
+	"user_addresses":    true,
+	"user_likes":        true,
 }
 
 type AdminHandler struct {

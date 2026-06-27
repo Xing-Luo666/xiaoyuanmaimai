@@ -20,7 +20,11 @@ func NewDBConfigHandler(s *store.DBStore, cfgFile string) *DBConfigHandler {
 
 func (h *DBConfigHandler) GetConfig(c *gin.Context) {
 	cfg := h.DBStore.GetConfig()
-	// 隐藏密码
+	// 不返回密码，避免敏感信息泄露
+	passwordMasked := ""
+	if cfg.Password != "" {
+		passwordMasked = "******"
+	}
 	c.JSON(http.StatusOK, models.APIResponse{
 		Code:    200,
 		Message: "success",
@@ -28,7 +32,7 @@ func (h *DBConfigHandler) GetConfig(c *gin.Context) {
 			"host":      cfg.Host,
 			"port":      cfg.Port,
 			"user":      cfg.User,
-			"password":  cfg.Password,
+			"password":  passwordMasked,
 			"dbName":    cfg.DBName,
 			"connected": h.isConnected(),
 		},
@@ -40,7 +44,7 @@ func (h *DBConfigHandler) UpdateConfig(c *gin.Context) {
 		Host     string `json:"host" binding:"required"`
 		Port     string `json:"port" binding:"required"`
 		User     string `json:"user" binding:"required"`
-		Password string `json:"password" binding:"required"`
+		Password string `json:"password"`
 		DBName   string `json:"dbName" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,11 +52,17 @@ func (h *DBConfigHandler) UpdateConfig(c *gin.Context) {
 		return
 	}
 
+	// 若前端提交的是占位密码（"******"），保留原密码
+	password := req.Password
+	if password == "" || password == "******" {
+		password = h.DBStore.GetConfig().Password
+	}
+
 	cfg := store.DBConfig{
 		Host:     req.Host,
 		Port:     req.Port,
 		User:     req.User,
-		Password: req.Password,
+		Password: password,
 		DBName:   req.DBName,
 	}
 

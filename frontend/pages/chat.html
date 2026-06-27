@@ -261,24 +261,19 @@ function handleFiles(files) {
 function renderPeerAvatar() {
   var el = document.getElementById('peerAvatar');
   if (!el) return;
-  var initial = (peerName || '?')[0].toUpperCase();
-  if (peerAvatarUrl) {
-    var url = peerAvatarUrl;
-    if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
-    el.innerHTML = '<img src="' + escAttr(url) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + initial + '\'">';
-  } else {
-    el.textContent = initial;
-  }
+  // 统一用动态 SVG 头像（含首字母）作为默认
+  var url = api.resolveAvatarUrl(peerAvatarUrl, peerName);
+  var fallbackUrl = api.generateDefaultAvatar(peerName).replace(/'/g, '%27');
+  el.innerHTML = '<img src="' + escAttr(url) + '" onerror="this.src=\'' + fallbackUrl + '\'">';
 }
 
 function avatarHTML(isMine) {
   var url = isMine ? myAvatarUrl : peerAvatarUrl;
-  var initial = isMine ? '' : (peerName || '?')[0].toUpperCase();
-  if (url) {
-    if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
-    return '<div class="row-avatar"><img src="' + escAttr(url) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + initial + '\'"></div>';
-  }
-  return '<div class="row-avatar">' + initial + '</div>';
+  var user = api.getUser();
+  var name = isMine ? (user && user.username) : peerName;
+  var resolvedUrl = api.resolveAvatarUrl(url, name);
+  var fallbackUrl = api.generateDefaultAvatar(name).replace(/'/g, '%27');
+  return '<div class="row-avatar"><img src="' + escAttr(resolvedUrl) + '" onerror="this.src=\'' + fallbackUrl + '\'"></div>';
 }
 
 function renderMessages() {

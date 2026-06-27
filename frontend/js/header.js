@@ -96,18 +96,18 @@
         '<a href="profile.html">个人中心</a>' +
         '<a href="javascript:void(0)" onclick="api.logout();location.href=\'../index.html\'">退出</a>';
     }
-    // 默认显示用户名首字母
+    // 默认头像：用动态生成的带首字母 SVG data URI（字母作为图片内部内容）
     var avatarEl = document.getElementById('headerAvatar');
     if (avatarEl && user.username) {
-      avatarEl.textContent = user.username[0].toUpperCase();
+      var defaultUrl = api.generateDefaultAvatar(user.username);
+      avatarEl.innerHTML = '<img src="' + escHtml(defaultUrl) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
     }
-    // 异步加载最新头像
+    // 异步加载最新头像（覆盖默认头像）
     if (api.token) {
       api.get('/user/profile').then(function(res) {
-        if (res.code === 200 && res.data && res.data.avatar && avatarEl) {
-          var url = res.data.avatar;
-          if (url.indexOf('http') !== 0 && url.indexOf('/') !== 0) url = '/' + url;
-          avatarEl.innerHTML = '<img src="' + escHtml(url) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.textContent=\'' + (user.username[0]||'U').toUpperCase() + '\'">';
+        if (res.code === 200 && res.data && avatarEl) {
+          var url = api.resolveAvatarUrl(res.data.avatar, user.username);
+          avatarEl.innerHTML = '<img src="' + escHtml(url) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.src=\'' + api.generateDefaultAvatar(user.username).replace(/'/g, '%27') + '\'">';
         }
       }).catch(function(){});
     }

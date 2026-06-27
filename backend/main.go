@@ -217,7 +217,7 @@ func main() {
 
 	api := r.Group("/api")
 	{
-		// 数据库配置接口（始终可用）
+		// 数据库配置接口（首次连接 DB 前无法登录，故保留无认证访问；GET 不返回密码）
 		dbConfigHandler := handlers.NewDBConfigHandler(dbStore, cfgFile)
 		api.GET("/db-config", dbConfigHandler.GetConfig)
 		api.PUT("/db-config", dbConfigHandler.UpdateConfig)
@@ -240,13 +240,12 @@ func main() {
 		api.POST("/login", authHandler.Login)
 		api.GET("/verify-token", authHandler.VerifyToken)
 
-		api.GET("/products", productHandler.List)
-		api.GET("/products/:id", productHandler.Get)
-
 		// 轮播卡片（公开接口）
 		bannerHandler := handlers.NewBannerHandler(dbStore)
 		api.GET("/banners", bannerHandler.GetBanners)
 
+		// 注意：静态路由必须在参数路由 :id 之前注册，
+		// 否则 Gin 会把 /products/my 误匹配到 /products/:id
 		auth := api.Group("")
 		auth.Use(middleware.AuthRequired())
 		{
@@ -255,13 +254,16 @@ func main() {
 			auth.PUT("/user/change-password", authHandler.ChangePassword)
 			auth.GET("/user/profile", userHandler.GetProfile)
 			auth.POST("/user/avatar", userHandler.UploadAvatar)
+			auth.DELETE("/user/avatar", userHandler.DeleteAvatar)
 
+			// 静态路由先注册
 			auth.GET("/products/my", productHandler.MyProducts)
 			auth.GET("/products/recommend", productHandler.Recommend)
 			auth.GET("/shops/:id/products", productHandler.ShopProducts)
 			auth.POST("/products", productHandler.Create)
 			auth.POST("/upload", productHandler.UploadImage)
 			auth.POST("/upload/chat-image", chatHandler.UploadChatImage)
+			// 参数路由后注册
 			auth.PUT("/products/:id", productHandler.Update)
 			auth.DELETE("/products/:id", productHandler.Delete)
 
@@ -335,6 +337,10 @@ func main() {
 			admin.DELETE("/banners/:id", bannerHandler.AdminDeleteBanner)
 			admin.POST("/banners/reset", bannerHandler.AdminResetBanners)
 		}
+
+		// 公开商品接口（含参数路由 :id，需放在 /products/my、/products/recommend 等静态路由之后注册）
+		api.GET("/products", productHandler.List)
+		api.GET("/products/:id", productHandler.Get)
 	}
 
 	var frontendDir string

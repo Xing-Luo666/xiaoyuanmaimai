@@ -178,6 +178,7 @@ func (h *ChatHandler) ChatWS(c *gin.Context) {
 
 func (h *ChatHandler) broadcast(peerKey string, senderConn *websocket.Conn, msg []byte) {
 	// 快照当前房间内所有连接，释放锁后再写，避免慢客户端阻塞整个广播
+	// 注：不跳过 senderConn — 前端 chat.html 依赖服务端回显来渲染自己发送的消息
 	h.mu.Lock()
 	conns := make([]*websocket.Conn, 0, len(h.rooms[peerKey]))
 	for conn := range h.rooms[peerKey] {
@@ -261,6 +262,8 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 	db := h.Store.GetDB()
 
 	// 获取用户参与的所有peer_key及最后一条消息
+	// peer_key 格式为 "userA:userB"（按字母序排序），用 SUBSTRING_INDEX 精确匹配两端，
+	// 避免使用 LIKE '%userID%' 误匹配包含用户ID子串的其他对话
 	rows, err := db.Query(`
 		SELECT cm.peer_key, cm.content, cm.type, cm.sender_id, cm.sender_name, cm.created_at,
 		       CASE WHEN cm.sender_id = ? THEN 0 ELSE 1 END AS is_other
@@ -268,11 +271,12 @@ func (h *ChatHandler) ChatList(c *gin.Context) {
 		INNER JOIN (
 			SELECT peer_key, MAX(created_at) AS last_time
 			FROM chat_messages
-			WHERE peer_key LIKE CONCAT('%', ?, '%')
+			WHERE SUBSTRING_INDEX(peer_key, ':', 1) = ?
+			   OR SUBSTRING_INDEX(peer_key, ':', -1) = ?
 			GROUP BY peer_key
 		) latest ON cm.peer_key = latest.peer_key AND cm.created_at = latest.last_time
 		ORDER BY cm.created_at DESC
-	`, userID, userID)
+	`, userID, userID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -362,11 +366,12 @@ func (h *ChatHandler) ChatUnreadCount(c *gin.Context) {
 	db := h.Store.GetDB()
 
 	total := 0
-	// 获取用户参与的所有peer_key
+	// 获取用户参与的所有peer_key（精确匹配两端，避免子串误匹配）
 	rows, err := db.Query(`
 		SELECT DISTINCT peer_key FROM chat_messages
-		WHERE peer_key LIKE CONCAT('%', ?, '%')
-	`, userID)
+		WHERE SUBSTRING_INDEX(peer_key, ':', 1) = ?
+		   OR SUBSTRING_INDEX(peer_key, ':', -1) = ?
+	`, userID, userID)
 	if err != nil {
 		c.JSON(http.StatusOK, models.APIResponse{Code: 200, Data: gin.H{"count": 0}})
 		return
