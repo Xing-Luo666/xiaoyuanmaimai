@@ -274,8 +274,8 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	// 查询用户信息
 	db := h.store.GetDB()
 	if at.UserType == "personal" {
-		var phone, realName, idCard, nickname string
-		var email, authLevel, avatar sql.NullString
+		var phone string
+		var realName, idCard, nickname, email, authLevel, avatar sql.NullString
 		err := db.QueryRow(
 			"SELECT phone, real_name, id_card_no, nickname, email, auth_level, avatar FROM u_user WHERE id = ? AND del_flag = 0",
 			at.UserID,
@@ -291,8 +291,8 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 			"user_id":    at.UserID,
 			"user_type":  "personal",
 			"phone":      phone,
-			"real_name":  realName,
-			"nickname":   nickname,
+			"real_name":  realName.String,
+			"nickname":   nickname.String,
 			"email":      email.String,
 			"avatar":     avatar.String,
 			"auth_level": authLevel.String,
