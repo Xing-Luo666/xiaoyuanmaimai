@@ -1,0 +1,31 @@
+graph TB
+    subgraph 客户端["客户端（浏览器）"]
+        UI[HTML/CSS/JS 前端页面]
+        WS[WebSocket 客户端]
+    end
+    subgraph 接入层["接入层"]
+        NGINX[Nginx 反向代理<br/>HTTPS 证书<br/>静态资源托管]
+    end
+    subgraph 应用层["应用层（Go + Gin）"]
+        AUTH[认证中间件<br/>JWT Token]
+        ROUTER[路由分发]
+        CTRL[控制器层<br/>Handler]
+        SVC[业务逻辑层<br/>Service]
+        WS_HUB[WebSocket Hub<br/>连接管理/广播]
+    end
+    subgraph 数据层["数据层"]
+        MYSQL[(MySQL 8.0<br/>业务数据)]
+        REDIS[(本地缓存)]
+        FS[文件系统<br/>商品图片]
+    end
+    UI -->|HTTP/HTTPS| NGINX
+    WS -->|WSS| NGINX
+    NGINX --> AUTH
+    AUTH --> ROUTER
+    ROUTER --> CTRL
+    CTRL --> SVC
+    ROUTER --> WS_HUB
+    SVC --> MYSQL
+    SVC --> FS
+    WS_HUB --> MYSQL
+    SVC -.-> REDIS

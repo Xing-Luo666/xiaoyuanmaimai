@@ -240,6 +240,14 @@ func main() {
 		api.POST("/login", authHandler.Login)
 		api.GET("/verify-token", authHandler.VerifyToken)
 
+		// OAuth2 对接 UAS 统一身份认证
+		// 注意：callback 路由注册在 /oauth/* 下（与UAS应用表中注册的redirect_uri一致），
+		// config 和 login 也注册到 /oauth/* 保持一致
+		oauthHandler := handlers.NewOAuthHandler(dbStore)
+		r.GET("/oauth/config", oauthHandler.GetConfig)
+		r.GET("/oauth/login", oauthHandler.Login)
+		r.GET("/oauth/callback", oauthHandler.Callback)
+
 		// 轮播卡片（公开接口）
 		bannerHandler := handlers.NewBannerHandler(dbStore)
 		api.GET("/banners", bannerHandler.GetBanners)

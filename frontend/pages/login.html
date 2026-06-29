@@ -8,6 +8,15 @@
 <style>
 body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height:100vh; display:flex; align-items:center; justify-content:center }
 .login-footer { text-align:center; margin-top:24px; color:var(--text-light); font-size:12px }
+.divider { display:flex; align-items:center; margin:18px 0; color:var(--text-light); font-size:12px }
+.divider::before, .divider::after { content:''; flex:1; height:1px; background:#E5E7EB }
+.divider::before { margin-right:10px }
+.divider::after { margin-left:10px }
+.uas-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:8px; border:1px solid #3B82F6; background:linear-gradient(135deg,#3B82F6,#2563EB); color:#fff; font-size:15px; font-weight:500; cursor:pointer; transition:all .2s }
+.uas-btn:hover { box-shadow:0 4px 12px rgba(37,99,235,.35); transform:translateY(-1px) }
+.uas-btn:disabled { opacity:.6; cursor:not-allowed; transform:none }
+.uas-logo { width:22px; height:22px; background:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; color:#2563EB; font-weight:bold }
+.uas-tip { text-align:center; color:var(--text-light); font-size:12px; margin-top:8px }
 </style>
 </head>
 <body>
@@ -25,6 +34,13 @@ body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height
       <div class="l-input-wrap"><span class="l-icon">🔒</span><input type="password" class="form-input" id="password" placeholder="请输入密码" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="mall-btn mall-btn-primary mall-btn-block mall-btn-lg" id="loginBtn" onclick="doLogin()"><span id="btnText">登 录</span></button>
       <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:13px"><a href="register.html">免费注册</a><a href="javascript:void(0)" style="color:var(--text-light)">忘记密码</a></div>
+
+      <div class="divider">其他登录方式</div>
+      <button class="uas-btn" id="uasBtn" onclick="uasLogin()">
+        <span class="uas-logo">U</span>
+        <span>使用 UAS 统一身份认证登录</span>
+      </button>
+      <div class="uas-tip">通过 UAS 单点登录，无需在本平台重复注册</div>
     </div>
   </div>
   <div class="login-footer">Copyright © 2024 校园二手交易平台</div>
@@ -32,7 +48,50 @@ body { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); min-height
 
 <script src="../js/api.js"></script>
 <script>
-(function() { if (api.isLoggedIn()) { location.href = '../index.html'; return; } })();
+(function() {
+  // 已登录直接跳走
+  if (api.isLoggedIn()) { location.href = '../index.html'; return; }
+
+  // 处理 OAuth 回调（URL参数 uas_token=xxx 或 uas_error=xxx）
+  var params = new URLSearchParams(location.search);
+  var uasToken = params.get('uas_token');
+  var uasError = params.get('uas_error');
+  if (uasError) {
+    showError(decodeURIComponent(uasError));
+    // 清理URL
+    history.replaceState({}, document.title, location.pathname);
+  } else if (uasToken) {
+    // UAS 回调成功，保存 token 到 localStorage（与api.js中login逻辑保持一致）
+    api.token = uasToken;
+    // 调用 verify-token 获取用户信息并保存到 USER_KEY（与普通登录保持一致）
+    api.get('/verify-token?token=' + encodeURIComponent(uasToken)).then(function(res) {
+      if (res && res.code === 200 && res.data) {
+        var userInfo = JSON.stringify({
+          userId: res.data.userId,
+          username: res.data.username,
+          role: res.data.role
+        });
+        sessionStorage.setItem('sso_user', userInfo);
+        localStorage.setItem('sso_user', userInfo);
+      }
+      // 跳转到原始页面或首页
+      var redirect = params.get('redirect') || '../index.html';
+      location.href = redirect;
+    }).catch(function() {
+      // 即使获取用户信息失败也跳转（cookie已设置）
+      var redirect = params.get('redirect') || '../index.html';
+      location.href = redirect;
+    });
+    return;
+  }
+})();
+
+function showError(msg) {
+  var err = document.getElementById('errorTip');
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
 function doLogin() {
   var u = document.getElementById('username').value.trim();
   var p = document.getElementById('password').value;
@@ -52,6 +111,19 @@ function doLogin() {
       err.style.display = 'block';
     }
   });
+}
+
+// UAS 统一身份认证登录：跳转到后端的 /api/oauth/login
+// 后端会重定向到 UAS 授权页，授权完成后回调 /api/oauth/callback
+function uasLogin() {
+  var btn = document.getElementById('uasBtn');
+  btn.disabled = true;
+  // 记录登录前的页面，授权后跳回
+  var from = new URLSearchParams(location.search).get('redirect') || '../index.html';
+  // 跳转到后端OAuth入口，后端会302到UAS授权页
+  // state 用于携带原始redirect，授权完成后会回传
+  // 注意：OAuth路由注册在 /oauth/* 而非 /api/oauth/* 下，与UAS应用表中的redirect_uri保持一致
+  location.href = '/oauth/login?redirect=' + encodeURIComponent(from);
 }
 </script>
 </body>

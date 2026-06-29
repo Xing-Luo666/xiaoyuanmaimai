@@ -189,8 +189,10 @@ func (s *DBStore) initTables() error {
 			phone VARCHAR(20) DEFAULT '',
 			email VARCHAR(64) DEFAULT '',
 			role VARCHAR(20) DEFAULT 'student',
+			uas_user_id VARCHAR(64) DEFAULT NULL,
 			created_at DATETIME NOT NULL,
-			updated_at DATETIME NOT NULL
+			updated_at DATETIME NOT NULL,
+			UNIQUE KEY uk_uas_user_id (uas_user_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
 		`CREATE TABLE IF NOT EXISTS products (
@@ -393,6 +395,10 @@ func (s *DBStore) initTables() error {
 		"UPDATE reviews r SET r.reviewer_name = (SELECT u.nickname FROM users u WHERE u.id = r.reviewer_id) WHERE r.reviewer_name = ''",
 		// 新增 users 表 avatar 默认头像字段（如不存在）
 		"ALTER TABLE users ADD COLUMN avatar VARCHAR(255) DEFAULT '' AFTER nickname",
+		// 新增 users 表 uas_user_id 字段（UAS OAuth2 对接，唯一索引允许多个NULL）
+		"ALTER TABLE users ADD COLUMN uas_user_id VARCHAR(64) DEFAULT NULL AFTER role",
+		// 添加唯一索引（如不存在，注意 NULL 值不参与唯一性约束）
+		"ALTER TABLE users ADD UNIQUE KEY uk_uas_user_id (uas_user_id)",
 	}
 	for _, ddl := range colAlters {
 		db.Exec(ddl) // 忽略错误

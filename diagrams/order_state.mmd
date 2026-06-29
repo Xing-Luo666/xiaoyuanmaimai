@@ -1,0 +1,20 @@
+stateDiagram-v2
+    [*] --> pending: 用户下单
+    pending --> paid: 卖家确认/买家付款
+    pending --> cancelled: 超时未付/取消
+    paid --> shipped: 卖家发货
+    paid --> cancelled: 协商取消
+    shipped --> completed: 买家确认收货<br/>或7天自动确认
+    shipped --> completed: 自动确认定时任务
+    cancelled --> [*]
+    completed --> [*]
+
+    note right of pending
+        行锁扣库存
+        FOR UPDATE
+    end note
+
+    note right of completed
+        触发评价
+        更新月售统计
+    end note
