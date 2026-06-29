@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    participant A as 买家浏览器
+    participant WS as WebSocket服务
+    participant HUB as ChatHub
+    participant DB as MySQL
+    participant B as 卖家浏览器
+
+    A->>WS: 1. 建立 WSS 连接（带 JWT）
+    WS->>WS: 2. 验证 Token，注册连接
+    B->>WS: 3. 建立 WSS 连接（带 JWT）
+    WS->>WS: 4. 验证 Token，注册连接
+
+    A->>HUB: 5. 发送消息（peer_key/order_id）
+    HUB->>DB: 6. 持久化消息记录
+    DB-->>HUB: 7. 返回消息 ID
+    HUB->>B: 8. 实时推送消息（在线）
+    HUB->>A: 9. 回执已发送
+
+    Note over B: 若离线，消息存于DB
+    B->>HUB: 10. 上线后拉取历史消息
+    HUB->>DB: 11. 查询未读
+    DB-->>HUB: 12. 返回消息列表
+    HUB->>B: 13. 推送历史消息
+    B->>HUB: 14. 标记已读
+    HUB->>DB: 15. 更新未读计数

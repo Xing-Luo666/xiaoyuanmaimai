@@ -1,0 +1,10 @@
+* { box-sizing: border-box; }
+html, body, h1, h2, h3, h4, h5, h6, p, ul, ol, li, dl, dt, dd, form, fieldset, legend, input, textarea, button, select, option, table, th, td, pre, blockquote, figure, hr {
+  margin: 0;
+  padding: 0;
+}
+ul, ol { list-style: none; }
+img { border: 0; vertical-align: middle; }
+a { text-decoration: none; }
+table { border-collapse: collapse; border-spacing: 0; }
+input, button, textarea, select { font-family: inherit; font-size: inherit; }

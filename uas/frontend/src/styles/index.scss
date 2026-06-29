@@ -1,0 +1,45 @@
+// 全局样式
+@use './variables.scss' as *;
+@use './reset.scss';
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  color: #303133;
+  background-color: #f5f7fa;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: $primaryColor; text-decoration: none; }
+a:hover { color: lighten($primaryColor, 10%); }
+
+// 滚动条样式
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+::-webkit-scrollbar-track { background: transparent; }
+
+// 通用工具类
+.flex { display: flex; }
+.flex-center { display: flex; justify-content: center; align-items: center; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.mb10 { margin-bottom: 10px; }
+.mb20 { margin-bottom: 20px; }
+.mt10 { margin-top: 10px; }
+.mt20 { margin-top: 20px; }
+
+// 搜索表单卡片
+.search-card { margin-bottom: 16px; }
+.search-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+// 分页容器
+.pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
+
+// 表单对话框
+.dialog-footer { display: flex; justify-content: flex-end; }

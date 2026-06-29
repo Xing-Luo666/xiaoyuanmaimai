@@ -1,0 +1,124 @@
+erDiagram
+    users ||--o{ products : 发布
+    users ||--o{ orders : 下单
+    users ||--o{ addresses : 拥有
+    users ||--o{ cart_items : 收藏
+    users ||--o{ favorites : 收藏
+    users ||--o{ messages : 发送
+    users ||--o{ reviews : 评价
+    users ||--o{ histories : 浏览
+
+    products ||--o{ order_items : 包含
+    products ||--o{ reviews : 被评价
+    products ||--o{ favorites : 被收藏
+    products ||--o{ histories : 被浏览
+    products ||--o{ product_images : 包含
+
+    orders ||--|{ order_items : 包含
+    orders ||--o{ messages : 关联
+    orders ||--o{ reviews : 关联
+
+    users {
+        bigint id PK
+        varchar username
+        varchar password_hash
+        varchar avatar
+        varchar phone
+        varchar nickname
+        datetime created_at
+    }
+
+    products {
+        bigint id PK
+        bigint user_id FK
+        varchar title
+        text description
+        decimal price
+        int stock
+        int category_id
+        varchar status
+        int views
+        datetime created_at
+    }
+
+    orders {
+        bigint id PK
+        bigint buyer_id FK
+        bigint seller_id FK
+        decimal total
+        varchar status
+        varchar address_snapshot
+        datetime created_at
+        datetime paid_at
+        datetime shipped_at
+        datetime completed_at
+    }
+
+    order_items {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        varchar product_snapshot
+        decimal price
+        int quantity
+    }
+
+    messages {
+        bigint id PK
+        bigint sender_id FK
+        bigint receiver_id FK
+        varchar peer_key
+        bigint order_id FK
+        text content
+        varchar msg_type
+        int is_read
+        datetime created_at
+    }
+
+    addresses {
+        bigint id PK
+        bigint user_id FK
+        varchar name
+        varchar phone
+        varchar detail
+        int is_default
+    }
+
+    cart_items {
+        bigint id PK
+        bigint user_id FK
+        bigint product_id FK
+        int quantity
+    }
+
+    favorites {
+        bigint id PK
+        bigint user_id FK
+        bigint product_id FK
+        datetime created_at
+    }
+
+    histories {
+        bigint id PK
+        bigint user_id FK
+        bigint product_id FK
+        datetime viewed_at
+    }
+
+    reviews {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        bigint user_id FK
+        int rating
+        text content
+        text reply
+        datetime created_at
+    }
+
+    product_images {
+        bigint id PK
+        bigint product_id FK
+        varchar url
+        int sort
+    }

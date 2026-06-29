@@ -1,0 +1,16 @@
+{
+  "theme": "default",
+  "themeVariables": {
+    "fontFamily": "Microsoft YaHei, SimHei, sans-serif",
+    "primaryColor": "#4ECDC4",
+    "primaryTextColor": "#333",
+    "primaryBorderColor": "#2A9D8F",
+    "lineColor": "#264653",
+    "secondaryColor": "#F4A261",
+    "tertiaryColor": "#E9C46A"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true
+  }
+}
