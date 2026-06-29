@@ -14,6 +14,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./uas/docs/init_tables.sql:/docker-entrypoint-initdb.d/01_init_uas.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -26,6 +27,9 @@ services:
       dockerfile: Dockerfile
     container_name: school-trade-app
     restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "${PORT:-28080}:28080"
     environment:
@@ -35,9 +39,39 @@ services:
       DB_USER: root
       DB_PASSWORD: ${DB_PASSWORD:-114514}
       DB_NAME: ${DB_NAME:-school_trade}
+
+  uas-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.uas
+    container_name: uas-app
+    restart: always
     depends_on:
       mysql:
         condition: service_healthy
+    ports:
+      - "${UAS_PORT:-8081}:8081"
+    environment:
+      UAS_PORT: "8081"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-114514}
+      DB_NAME: uas_db
+      JWT_SECRET: "uas-secret-key-2026-school-trade"
+      JWT_EXPIRE_HOURS: "24"
+
+  uas-frontend:
+    image: nginx:alpine
+    container_name: uas-frontend
+    restart: always
+    depends_on:
+      - uas-app
+    ports:
+      - "${UAS_FE_PORT:-8082}:8082"
+    volumes:
+      - ./uas/frontend/dist:/usr/share/nginx/html:ro
+      - ./uas/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
   mysql_data:
