@@ -27,10 +27,10 @@ type OAuthConfig struct {
 
 func loadOAuthConfig() OAuthConfig {
 	cfg := OAuthConfig{
-		UASBaseURL:   getEnv("UAS_BASE_URL", "http://localhost:8081"),
+		UASBaseURL:   getEnv("UAS_BASE_URL", "http://47.94.218.199/uas"),
 		ClientID:     getEnv("UAS_CLIENT_ID", "KK790SCHOOLTRADE"),
 		ClientSecret: getEnv("UAS_CLIENT_SECRET", ""),
-		RedirectURI:  getEnv("UAS_REDIRECT_URI", "http://localhost:8080/oauth/callback"),
+		RedirectURI:  getEnv("UAS_REDIRECT_URI", "http://47.94.218.199/oauth/callback"),
 	}
 	return cfg
 }
