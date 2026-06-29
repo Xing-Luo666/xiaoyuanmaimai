@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,19 +62,28 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 		phone      string
 		sex        int
 		avatar     string
-		deptID     *int64
+		deptID     sql.NullInt64
 		deptName   string
 		roleName   string
 		createTime string
-		loginDate  string
 	)
-	_ = db.QueryRow(`
-		SELECT u.id, u.username, u.nickname, u.email, u.phone, u.sex, u.avatar, u.dept_id,
-		       IFNULL(d.dept_name, ''), '管理员', u.create_time, IFNULL(u.login_date, '')
+	err := db.QueryRow(`
+		SELECT u.id, u.username, IFNULL(u.nickname,''), IFNULL(u.email,''), IFNULL(u.phone,''), u.sex, IFNULL(u.avatar,''), u.dept_id,
+		       IFNULL(d.dept_name, ''), '管理员', u.create_time
 		FROM sys_user u
 		LEFT JOIN sys_dept d ON u.dept_id = d.id
 		WHERE u.id = ?
-	`, userID).Scan(&id, &username, &nickname, &email, &phone, &sex, &avatar, &deptID, &deptName, &roleName, &createTime, &loginDate)
+	`, userID).Scan(&id, &username, &nickname, &email, &phone, &sex, &avatar, &deptID, &deptName, &roleName, &createTime)
+	if err != nil {
+		utils.Error(c, "查询失败")
+		return
+	}
+
+	var deptIDPtr *int64
+	if deptID.Valid {
+		v := deptID.Int64
+		deptIDPtr = &v
+	}
 
 	utils.Success(c, gin.H{
 		"id":         id,
@@ -83,11 +93,11 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 		"phone":      phone,
 		"sex":        sex,
 		"avatar":     avatar,
-		"deptId":     deptID,
+		"deptId":     deptIDPtr,
 		"deptName":   deptName,
 		"roleName":   roleName,
 		"createTime": createTime,
-		"loginDate":  loginDate,
+		"loginDate":  "",
 	})
 }
 

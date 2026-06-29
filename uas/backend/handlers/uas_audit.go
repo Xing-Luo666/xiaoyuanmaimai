@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"strconv"
 
 	"uas/store"
@@ -65,13 +66,13 @@ func (h *AuditHandler) List(c *gin.Context) {
 			if rows != nil {
 				for rows.Next() {
 					var u AuditItem
-					var realName, auditRemark, phone string
+					var realName, auditRemark, phone sql.NullString
 					rows.Scan(&u.ID, &phone, &realName, &u.AuditStatus, &auditRemark, &u.CreateTime)
 					u.UserType = "personal"
-					u.Username = phone
-					u.RealName = realName
-					u.Phone = phone
-					u.AuditRemark = auditRemark
+					u.Username = phone.String
+					u.RealName = realName.String
+					u.Phone = phone.String
+					u.AuditRemark = auditRemark.String
 					list = append(list, u)
 				}
 				rows.Close()
@@ -102,13 +103,13 @@ func (h *AuditHandler) List(c *gin.Context) {
 			if rows != nil {
 				for rows.Next() {
 					var u AuditItem
-					var username, corpName, phone, auditRemark string
+					var username, corpName, phone, auditRemark sql.NullString
 					rows.Scan(&u.ID, &username, &corpName, &phone, &u.AuditStatus, &auditRemark, &u.CreateTime)
 					u.UserType = "corp"
-					u.Username = username
-					u.RealName = corpName
-					u.Phone = phone
-					u.AuditRemark = auditRemark
+					u.Username = username.String
+					u.RealName = corpName.String
+					u.Phone = phone.String
+					u.AuditRemark = auditRemark.String
 					list = append(list, u)
 				}
 				rows.Close()

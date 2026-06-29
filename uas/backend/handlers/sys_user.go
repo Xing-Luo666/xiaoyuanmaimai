@@ -73,10 +73,11 @@ func (h *SysUserHandler) List(c *gin.Context) {
 	var list []UserItem
 	for rows.Next() {
 		var u UserItem
-		var email, phone, avatar, remark sql.NullString
-		if err := rows.Scan(&u.ID, &u.Username, &u.Nickname, &email, &phone, &u.Sex, &avatar, &u.Status, &remark, &u.CreateTime); err != nil {
+		var nickname, email, phone, avatar, remark sql.NullString
+		if err := rows.Scan(&u.ID, &u.Username, &nickname, &email, &phone, &u.Sex, &avatar, &u.Status, &remark, &u.CreateTime); err != nil {
 			continue
 		}
+		u.Nickname = nickname.String
 		u.Email = email.String
 		u.Phone = phone.String
 		u.Avatar = avatar.String
@@ -103,15 +104,16 @@ func (h *SysUserHandler) Get(c *gin.Context) {
 		Status   int    `json:"status"`
 		Remark   string `json:"remark"`
 	}
-	var email, phone, avatar, remark sql.NullString
+	var nickname, email, phone, avatar, remark sql.NullString
 	err := db.QueryRow(
 		"SELECT id, username, nickname, email, phone, sex, avatar, status, remark FROM sys_user WHERE id = ?",
 		id,
-	).Scan(&u.ID, &u.Username, &u.Nickname, &email, &phone, &u.Sex, &avatar, &u.Status, &remark)
+	).Scan(&u.ID, &u.Username, &nickname, &email, &phone, &u.Sex, &avatar, &u.Status, &remark)
 	if err != nil {
 		utils.Error(c, "用户不存在")
 		return
 	}
+	u.Nickname = nickname.String
 	u.Email = email.String
 	u.Phone = phone.String
 	u.Avatar = avatar.String

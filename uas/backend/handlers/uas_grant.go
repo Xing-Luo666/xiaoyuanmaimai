@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"strconv"
 
 	"uas/store"
@@ -73,11 +74,13 @@ func (h *GrantHandler) List(c *gin.Context) {
 	var list []GrantItem
 	for rows.Next() {
 		var g GrantItem
-		var expireTime string
+		var expireTime sql.NullString
 		if err := rows.Scan(&g.ID, &g.UserID, &g.UserType, &g.AppID, &g.GrantTime, &expireTime, &g.Status, &g.AppName, &g.UserName); err != nil {
 			continue
 		}
-		g.ExpireTime = expireTime
+		if expireTime.Valid {
+			g.ExpireTime = expireTime.String
+		}
 		list = append(list, g)
 	}
 	if list == nil {

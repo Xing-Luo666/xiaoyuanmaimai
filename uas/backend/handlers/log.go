@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"uas/store"
 	"uas/utils"
 
@@ -65,10 +66,15 @@ func (h *LogHandler) LoginLogList(c *gin.Context) {
 	var list []LoginLogItem
 	for rows.Next() {
 		var l LoginLogItem
-		var failReason, userAgent string
-		rows.Scan(&l.ID, &l.UserID, &l.Username, &l.LoginType, &l.LoginIP, &l.LoginResult, &failReason, &userAgent, &l.LoginTime)
-		l.FailReason = failReason
-		l.UserAgent = userAgent
+		var username, loginType, loginIP, failReason, userAgent sql.NullString
+		if err := rows.Scan(&l.ID, &l.UserID, &username, &loginType, &loginIP, &l.LoginResult, &failReason, &userAgent, &l.LoginTime); err != nil {
+			continue
+		}
+		l.Username = username.String
+		l.LoginType = loginType.String
+		l.LoginIP = loginIP.String
+		l.FailReason = failReason.String
+		l.UserAgent = userAgent.String
 		list = append(list, l)
 	}
 	if list == nil {
@@ -132,7 +138,14 @@ func (h *LogHandler) AuditLogList(c *gin.Context) {
 	var list []AuditLogItem
 	for rows.Next() {
 		var a AuditLogItem
-		rows.Scan(&a.ID, &a.OperName, &a.OperType, &a.OperContent, &a.OperIP, &a.OperTime)
+		var operName, operType, operContent, operIP sql.NullString
+		if err := rows.Scan(&a.ID, &operName, &operType, &operContent, &operIP, &a.OperTime); err != nil {
+			continue
+		}
+		a.OperName = operName.String
+		a.OperType = operType.String
+		a.OperContent = operContent.String
+		a.OperIP = operIP.String
 		list = append(list, a)
 	}
 	if list == nil {
@@ -191,7 +204,13 @@ func (h *LogHandler) SmsLogList(c *gin.Context) {
 	var list []SmsLogItem
 	for rows.Next() {
 		var s SmsLogItem
-		rows.Scan(&s.ID, &s.Phone, &s.Template, &s.Content, &s.SendResult, &s.SendTime)
+		var template, content, sendResult sql.NullString
+		if err := rows.Scan(&s.ID, &s.Phone, &template, &content, &sendResult, &s.SendTime); err != nil {
+			continue
+		}
+		s.Template = template.String
+		s.Content = content.String
+		s.SendResult = sendResult.String
 		list = append(list, s)
 	}
 	if list == nil {

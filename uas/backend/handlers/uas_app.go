@@ -79,14 +79,15 @@ func (h *AppHandler) List(c *gin.Context) {
 	var list []AppItem
 	for rows.Next() {
 		var a AppItem
-		var description sql.NullString
-		if err := rows.Scan(&a.ID, &a.AppID, &a.AppName, &a.AppType, &a.SM4Secret, &a.AppSecret, &a.RedirectURI, &a.Status, &description, &a.CreateTime, &a.UpdateTime); err != nil {
+		var appType, sm4Secret, redirectURI, description sql.NullString
+		if err := rows.Scan(&a.ID, &a.AppID, &a.AppName, &appType, &sm4Secret, &a.AppSecret, &redirectURI, &a.Status, &description, &a.CreateTime, &a.UpdateTime); err != nil {
 			continue
 		}
-		a.Description = description.String
-		// 脱敏：仅显示前后4位
-		a.SM4Secret = utils.MaskString(a.SM4Secret, 4, 4)
+		a.AppType = appType.String
+		a.SM4Secret = utils.MaskString(sm4Secret.String, 4, 4)
 		a.AppSecret = utils.MaskString(a.AppSecret, 4, 4)
+		a.RedirectURI = redirectURI.String
+		a.Description = description.String
 		list = append(list, a)
 	}
 	if list == nil {
@@ -101,9 +102,9 @@ func (h *AppHandler) Get(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	db := h.store.GetDB()
 
-	var appID, appName, appType, sm4Secret, appSecret, redirectURI string
+	var appID, appName, appSecret string
+	var appType, sm4Secret, redirectURI, description sql.NullString
 	var status int
-	var description sql.NullString
 	var createTime, updateTime string
 
 	err := db.QueryRow(
@@ -120,10 +121,10 @@ func (h *AppHandler) Get(c *gin.Context) {
 		"id":          id,
 		"appId":       appID,
 		"appName":     appName,
-		"appType":     appType,
-		"sm4Secret":   sm4Secret,
+		"appType":     appType.String,
+		"sm4Secret":   sm4Secret.String,
 		"appSecret":   appSecret,
-		"redirectUri": redirectURI,
+		"redirectUri": redirectURI.String,
 		"status":      status,
 		"description": description.String,
 		"createTime":  createTime,
@@ -240,7 +241,8 @@ func (h *AppHandler) VerifyApp(appID, redirectURI string) (*struct {
 }, error) {
 	db := h.store.GetDB()
 	var id int64
-	var appSecret, sm4Secret, dbRedirect string
+	var appSecret string
+	var sm4Secret, dbRedirect sql.NullString
 	var status int
 	err := db.QueryRow(
 		"SELECT id, app_secret, sm4_secret, redirect_uri, status FROM u_app WHERE app_id = ? AND del_flag = 0",
@@ -252,9 +254,10 @@ func (h *AppHandler) VerifyApp(appID, redirectURI string) (*struct {
 	}
 
 	// 校验回调地址
-	if !strings.HasPrefix(redirectURI, dbRedirect) && redirectURI != dbRedirect {
+	dbRedirectStr := dbRedirect.String
+	if !strings.HasPrefix(redirectURI, dbRedirectStr) && redirectURI != dbRedirectStr {
 		// 部分匹配策略：允许前缀匹配（用于带参数的回调）
-		if !strings.HasPrefix(redirectURI, strings.TrimSuffix(dbRedirect, "/")) {
+		if !strings.HasPrefix(redirectURI, strings.TrimSuffix(dbRedirectStr, "/")) {
 			return nil, sql.ErrNoRows
 		}
 	}
@@ -274,8 +277,8 @@ func (h *AppHandler) VerifyApp(appID, redirectURI string) (*struct {
 		ID:          id,
 		AppID:       appID,
 		AppSecret:   appSecret,
-		SM4Secret:   sm4Secret,
-		RedirectURI: dbRedirect,
+		SM4Secret:   sm4Secret.String,
+		RedirectURI: dbRedirectStr,
 		Status:      status,
 	}, nil
 }

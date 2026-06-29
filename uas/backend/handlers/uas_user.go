@@ -84,12 +84,14 @@ func (h *UASUserHandler) List(c *gin.Context) {
 	var list []UserItem
 	for rows.Next() {
 		var u UserItem
-		var idCard, nickname, email, auditRemark sql.NullString
+		var realName, idCard, nickname, email, authLevel, auditRemark sql.NullString
 		var auditTime sql.NullTime
-		if err := rows.Scan(&u.ID, &u.Phone, &u.RealName, &u.IDCardType, &idCard, &u.AuthLevel, &nickname, &email, &u.Status, &u.AuditStatus, &auditRemark, &auditTime, &u.CreateTime, &u.UpdateTime); err != nil {
+		if err := rows.Scan(&u.ID, &u.Phone, &realName, &u.IDCardType, &idCard, &authLevel, &nickname, &email, &u.Status, &u.AuditStatus, &auditRemark, &auditTime, &u.CreateTime, &u.UpdateTime); err != nil {
 			continue
 		}
+		u.RealName = realName.String
 		u.IDCardNo = utils.MaskIDCard(idCard.String)
+		u.AuthLevel = authLevel.String
 		u.Nickname = nickname.String
 		u.Email = email.String
 		u.AuditRemark = auditRemark.String
@@ -110,7 +112,8 @@ func (h *UASUserHandler) Get(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	db := h.store.GetDB()
 
-	var phone, realName, idCard, authLevel, nickname, email, auditRemark string
+	var phone string
+	var realName, idCard, authLevel, nickname, email, auditRemark sql.NullString
 	var idCardType, status, auditStatus int
 	var auditTime sql.NullTime
 	var createTime, updateTime string
@@ -128,15 +131,15 @@ func (h *UASUserHandler) Get(c *gin.Context) {
 	utils.Success(c, gin.H{
 		"id":          id,
 		"phone":       phone,
-		"realName":    realName,
+		"realName":    realName.String,
 		"idCardType":  idCardType,
-		"idCardNo":    utils.MaskIDCard(idCard),
-		"authLevel":   authLevel,
-		"nickname":    nickname,
-		"email":       email,
+		"idCardNo":    utils.MaskIDCard(idCard.String),
+		"authLevel":   authLevel.String,
+		"nickname":    nickname.String,
+		"email":       email.String,
 		"status":      status,
 		"auditStatus": auditStatus,
-		"auditRemark": auditRemark,
+		"auditRemark": auditRemark.String,
 		"auditTime":   nullTimeStr(auditTime),
 		"createTime":  createTime,
 		"updateTime":  updateTime,

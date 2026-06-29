@@ -89,10 +89,12 @@ func (h *AuthHandler) loginSysUser(c *gin.Context, db *sql.DB, username, passwor
 	// 查询用户
 	var user models.SysUser
 	var passwordHash string
+	var nickname sql.NullString
 	err := db.QueryRow(
 		"SELECT id, username, password, nickname, status FROM sys_user WHERE username = ? AND del_flag = 0",
 		username,
-	).Scan(&user.ID, &user.Username, &passwordHash, &user.Nickname, &user.Status)
+	).Scan(&user.ID, &user.Username, &passwordHash, &nickname, &user.Status)
+	user.Nickname = nickname.String
 
 	if err == sql.ErrNoRows {
 		h.recordLoginLog(nil, username, "password", c.ClientIP(), 0, "用户不存在")
@@ -261,10 +263,15 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 
 	db := h.store.GetDB()
 	var user models.SysUser
+	var nickname, email, phone, avatar sql.NullString
 	err := db.QueryRow(
 		"SELECT id, username, nickname, email, phone, sex, avatar, status, create_time FROM sys_user WHERE id = ?",
 		userID,
-	).Scan(&user.ID, &user.Username, &user.Nickname, &user.Email, &user.Phone, &user.Sex, &user.Avatar, &user.Status, &user.CreateTime)
+	).Scan(&user.ID, &user.Username, &nickname, &email, &phone, &user.Sex, &avatar, &user.Status, &user.CreateTime)
+	user.Nickname = nickname.String
+	user.Email = email.String
+	user.Phone = phone.String
+	user.Avatar = avatar.String
 
 	if err != nil {
 		utils.Error(c, "用户不存在")
