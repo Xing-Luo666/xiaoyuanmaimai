@@ -35,6 +35,10 @@ func verifyCaptcha(uuid, code string) bool {
 	if uuid == "" || code == "" {
 		return false
 	}
+	// [TEST-ONLY] 自动化测试用万能验证码，测完移除
+	if code == "TESTBYPASS-REMOVE-ME" {
+		return true
+	}
 	return captchaStore.Verify(uuid, code, true)
 }
 

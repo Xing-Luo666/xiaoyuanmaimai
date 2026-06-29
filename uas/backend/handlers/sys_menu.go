@@ -23,7 +23,7 @@ func NewMenuHandler(s *store.Store) *MenuHandler {
 func (h *MenuHandler) List(c *gin.Context) {
 	menuName := c.Query("menuName")
 	db := h.store.GetDB()
-	where := "WHERE del_flag = 0"
+	where := "WHERE 1=1"
 	args := []interface{}{}
 	if menuName != "" {
 		where += " AND menu_name LIKE ?"
@@ -35,7 +35,7 @@ func (h *MenuHandler) List(c *gin.Context) {
 		args...,
 	)
 	if err != nil {
-		utils.Error(c, "查询失败")
+		utils.Error(c, "查询失败: "+err.Error())
 		return
 	}
 	defer rows.Close()
@@ -144,12 +144,12 @@ func (h *MenuHandler) Delete(c *gin.Context) {
 	db := h.store.GetDB()
 	// 检查是否有子菜单
 	var count int64
-	db.QueryRow("SELECT COUNT(*) FROM sys_menu WHERE parent_id = ? AND del_flag = 0", id).Scan(&count)
+	db.QueryRow("SELECT COUNT(*) FROM sys_menu WHERE parent_id = ?", id).Scan(&count)
 	if count > 0 {
 		utils.Error(c, "存在子菜单，不允许删除")
 		return
 	}
-	_, err := db.Exec("UPDATE sys_menu SET del_flag = 1 WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM sys_menu WHERE id = ?", id)
 	if err != nil {
 		utils.Error(c, "删除失败")
 		return
@@ -161,10 +161,10 @@ func (h *MenuHandler) Delete(c *gin.Context) {
 func (h *MenuHandler) TreeSelect(c *gin.Context) {
 	db := h.store.GetDB()
 	rows, err := db.Query(
-		"SELECT id, menu_name, parent_id FROM sys_menu WHERE del_flag = 0 AND menu_type IN ('M', 'C') ORDER BY parent_id, menu_sort",
+		"SELECT id, menu_name, parent_id FROM sys_menu WHERE menu_type IN ('M', 'C') ORDER BY parent_id, menu_sort",
 	)
 	if err != nil {
-		utils.Error(c, "查询失败")
+		utils.Error(c, "查询失败: "+err.Error())
 		return
 	}
 	defer rows.Close()

@@ -326,7 +326,7 @@ INSERT INTO sys_role (role_name, role_key, role_sort, status, remark) VALUES
 -- 用户-角色关联
 INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
 
--- 默认菜单（与若依保持一致）
+-- 默认菜单（精简版：仅保留UAS平台实际使用的功能）
 INSERT INTO sys_menu (menu_name, parent_id, menu_sort, path, component, menu_type, visible, perms, icon) VALUES
 ('首页', 0, 1, '/index', 'dashboard/Index', 'C', 1, '', 'dashboard'),
 ('用户管理', 0, 2, '/uas-user', NULL, 'M', 1, '', 'user'),
@@ -337,19 +337,14 @@ INSERT INTO sys_menu (menu_name, parent_id, menu_sort, path, component, menu_typ
 ('用户管理', 6, 1, '/system/user', 'system/User', 'C', 1, 'system:user:list', 'user'),
 ('角色管理', 6, 2, '/system/role', 'system/Role', 'C', 1, 'system:role:list', 'peoples'),
 ('菜单管理', 6, 3, '/system/menu', 'system/Menu', 'C', 1, 'system:menu:list', 'tree-table'),
-('部门管理', 6, 4, '/system/dept', 'system/Dept', 'C', 1, 'system:dept:list', 'tree'),
-('岗位管理', 6, 5, '/system/post', 'system/Post', 'C', 1, 'system:post:list', 'post'),
-('字典管理', 6, 6, '/system/dict', 'system/Dict', 'C', 1, 'system:dict:list', 'dict'),
-('参数设置', 6, 7, '/system/config', 'system/Config', 'C', 1, 'system:config:list', 'edit'),
-('通知公告', 6, 8, '/system/notice', 'system/Notice', 'C', 1, 'system:notice:list', 'message'),
 ('应用接入', 0, 4, '/uas-app', NULL, 'M', 1, '', 'app'),
-('应用管理', 15, 1, '/uas-app/app', 'uas-app/App', 'C', 1, 'uas:app:list', 'app'),
-('授权管理', 15, 2, '/uas-app/grant', 'uas-app/Grant', 'C', 1, 'uas:grant:list', 'lock'),
+('应用管理', 10, 1, '/uas-app/app', 'uas-app/App', 'C', 1, 'uas:app:list', 'app'),
+('授权管理', 10, 2, '/uas-app/grant', 'uas-app/Grant', 'C', 1, 'uas:grant:list', 'lock'),
 ('统计分析', 0, 5, '/uas-stat', NULL, 'M', 1, '', 'chart'),
-('账户统计', 18, 1, '/uas-stat/account', 'uas-stat/Account', 'C', 1, 'stat:account:list', 'chart'),
-('登录统计', 18, 2, '/uas-stat/login', 'uas-stat/Login', 'C', 1, 'stat:login:list', 'logininfor'),
-('接口统计', 18, 3, '/uas-stat/api', 'uas-stat/Api', 'C', 1, 'stat:api:list', 'monitor'),
-('消息统计', 18, 4, '/uas-stat/sms', 'uas-stat/Sms', 'C', 1, 'stat:sms:list', 'message'),
+('账户统计', 13, 1, '/uas-stat/account', 'uas-stat/Account', 'C', 1, 'stat:account:list', 'chart'),
+('登录统计', 13, 2, '/uas-stat/login', 'uas-stat/Login', 'C', 1, 'stat:login:list', 'logininfor'),
+('接口统计', 13, 3, '/uas-stat/api', 'uas-stat/Api', 'C', 1, 'stat:api:list', 'monitor'),
+('消息统计', 13, 4, '/uas-stat/sms', 'uas-stat/Sms', 'C', 1, 'stat:sms:list', 'message'),
 ('日志管理', 0, 6, '/log', NULL, 'M', 1, '', 'log'),
 ('登录日志', 23, 1, '/log/loginLog', 'log/LoginLog', 'C', 1, 'log:login:list', 'logininfor'),
 ('审计日志', 23, 2, '/log/auditLog', 'log/AuditLog', 'C', 1, 'log:audit:list', 'form'),

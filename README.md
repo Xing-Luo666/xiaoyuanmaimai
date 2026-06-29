@@ -1,16 +1,25 @@
 # 校园二手交易平台
 
-Go + MySQL 构建的校园二手交易平台，支持用户注册登录、商品发布浏览、订单管理等完整交易流程，管理员可管理数据库。
+Go + MySQL 构建的校园二手交易平台，支持用户注册登录、商品发布浏览、订单管理等完整交易流程；自带独立部署的 **UAS 统一身份认证平台**，为二手交易应用提供 OAuth2 单点登录。
+
+## 系统组成
+
+| 模块             | 端口 | 目录                  | 说明                                              |
+| ---------------- | ---- | --------------------- | ------------------------------------------------- |
+| 二手交易应用     | 8080 | `backend/` + `frontend/` | Go 后端 + 原生 HTML 前端，主应用                 |
+| UAS 后端 API     | 8081 | `uas/backend/`         | Go + Gin，OAuth2 授权、用户管理、JWT 签发        |
+| UAS 管理前端     | 8082 | `uas/frontend/`        | Vue3 + Element Plus，UAS 平台管理后台            |
+| MySQL 数据库     | 3306 | -                     | 同时承载 `school_trade` 与 `uas_db` 两个数据库   |
 
 ## 技术栈
 
-| 层级   | 技术                 |
-| ------ | -------------------- |
-| 前端   | 原生 HTML + CSS + JS |
-| 后端   | Go + Gin 框架        |
-| 数据库 | MySQL 8.0            |
-| 认证   | SSO + JWT            |
-| 部署   | Docker / Nginx       |
+| 层级   | 技术                                       |
+| ------ | ------------------------------------------ |
+| 前端   | 原生 HTML + CSS + JS / Vue3 + Element Plus  |
+| 后端   | Go + Gin 框架                              |
+| 数据库 | MySQL 8.0                                  |
+| 认证   | OAuth2.0 + JWT + 图形验证码                |
+| 部署   | Docker / Nginx / systemd                   |
 
 ---
 
@@ -205,20 +214,220 @@ go build -o school-trade .
 ./school-trade
 ```
 
+---
+
+## UAS 统一身份认证平台部署
+
+UAS 是独立部署的 OAuth2.0 认证平台，为二手交易应用提供单点登录。**必须先部署 UAS，再让二手交易应用通过 UAS 登录。**
+
+### 1. 创建 UAS 数据库
+
+复用上一步的 MySQL 实例，创建独立的 `uas_db` 数据库：
+
+```bash
+# 导入表结构和初始数据（含默认管理员、角色、菜单、示例应用等）
+mysql -uroot -p < uas/docs/init_tables.sql
+
+# 验证
+mysql -uroot -p -e "USE uas_db; SHOW TABLES;"
+# 预期看到：u_user / u_corp_user / u_app / sys_user / sys_role / sys_menu 等约 20 张表
+```
+
+> 默认管理员账号：`admin` / `admin123`（首次登录后请修改密码）
+
+### 2. 启动 UAS 后端（端口 8081）
+
+```bash
+cd uas/backend
+
+# 配置环境变量（与主应用共用 MySQL，但使用独立的 uas_db 数据库）
+export DB_HOST=127.0.0.1
+export DB_PORT=3306
+export DB_USER=root
+export DB_PASSWORD=你的密码
+export DB_NAME=uas_db
+export UAS_PORT=8081
+export JWT_SECRET=uas-secret-key-2026-school-trade
+
+# 编译并后台运行
+go build -o uas-server .
+nohup ./uas-server > uas.log 2>&1 &
+
+# 验证健康检查
+curl http://localhost:8081/api/health
+# 预期: {"database":true,"status":"ok","time":"..."}
+```
+
+**systemd 服务方式（推荐生产环境）：**
+
+```bash
+sudo tee /etc/systemd/system/uas-backend.service > /dev/null <<'EOF'
+[Unit]
+Description=UAS Backend API
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/school-trade/uas/backend
+Environment=DB_HOST=127.0.0.1
+Environment=DB_PORT=3306
+Environment=DB_USER=root
+Environment=DB_PASSWORD=你的密码
+Environment=DB_NAME=uas_db
+Environment=UAS_PORT=8081
+ExecStart=/home/ubuntu/school-trade/uas/backend/uas-server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now uas-backend
+sudo systemctl status uas-backend
+```
+
+### 3. 启动 UAS 管理前端（端口 8082）
+
+```bash
+cd uas/frontend
+
+# 安装依赖（首次部署需要 Node.js 18+）
+npm install
+
+# 开发模式（仅用于调试，生产环境请用下面的构建方式）
+npm run dev
+
+# 生产构建
+npm run build
+# 构建产物在 dist/ 目录
+
+# 用 vite preview 启动静态服务（端口 8082）
+nohup npx vite preview --port 8082 --host 0.0.0.0 > uas-frontend.log 2>&1 &
+
+# 或用 Nginx 托管 dist/ 静态文件
+```
+
+**Nginx 托管 UAS 管理前端（推荐）：**
+
+```nginx
+server {
+    listen 8082;
+    server_name _;
+
+    root /home/ubuntu/school-trade/uas/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API 反代到 UAS 后端
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:8081;
+    }
+}
+```
+
+### 4. UAS 环境变量说明
+
+| 变量                  | 默认值                              | 说明                    |
+| --------------------- | ----------------------------------- | ----------------------- |
+| `UAS_PORT`            | `8081`                              | UAS 后端端口            |
+| `DB_HOST`             | `127.0.0.1`                         | MySQL 主机              |
+| `DB_PORT`             | `3306`                              | MySQL 端口              |
+| `DB_USER`             | `root`                              | MySQL 用户名            |
+| `DB_PASSWORD`         | `114514`                            | MySQL 密码              |
+| `DB_NAME`             | `uas_db`                            | UAS 数据库名            |
+| `JWT_SECRET`          | `uas-secret-key-2026-school-trade`  | JWT 签名密钥            |
+| `JWT_EXPIRE_HOURS`    | `24`                                | Token 有效期（小时）    |
+| `OAUTH_CODE_EXPIRE`   | `300`                               | 授权码有效期（秒）      |
+| `OAUTH_TOKEN_EXPIRE`  | `604800`                            | OAuth Token 有效期（秒）|
+
+### 5. 二手交易应用接入 UAS
+
+UAS 初始化时已自动注册「校园二手交易平台」应用（AppID: `KK790SCHOOLTRADE`），回调地址指向 `http://localhost:8080/oauth/callback`。
+
+**生产环境需要更新回调地址**为云服务器实际访问地址：
+
+```bash
+# 登录 UAS 管理后台 http://服务器IP:8082
+# 默认账号 admin / admin123
+# 进入「应用接入 → 应用管理」→ 编辑「校园二手交易平台」
+# 将 redirect_uri 改为：http://你的服务器IP:8080/oauth/callback
+```
+
+二手交易应用的 UAS 对接配置在 `backend/handlers/oauth.go` 中，默认指向 `http://localhost:8081`。如果 UAS 后端部署在其他主机，需通过环境变量 `UAS_BASE_URL` 覆盖，或修改代码中的默认值。
+
+### 6. 访问入口
+
+| 入口                      | 地址                              |
+| ------------------------- | --------------------------------- |
+| 二手交易应用首页          | `http://服务器IP:8080/`           |
+| 二手交易应用登录页        | `http://服务器IP:8080/pages/login.html` |
+| UAS 管理后台              | `http://服务器IP:8082/`           |
+| UAS 后端 API              | `http://服务器IP:8081/api/`       |
+| UAS 授权页（OAuth2 入口） | 由二手交易应用登录页自动跳转       |
+
+### 7. UAS 日常维护
+
+```bash
+# 查看后端日志
+journalctl -u uas-backend -f
+
+# 重启后端
+sudo systemctl restart uas-backend
+
+# 更新 UAS 代码
+cd school-trade
+git pull
+cd uas/backend && go build -o uas-server . && sudo systemctl restart uas-backend
+cd ../frontend && npm run build  # 前端重新构建即可，无需重启 Nginx
+
+# 备份 UAS 数据库
+mysqldump -uroot -p uas_db > uas_backup.sql
+```
+
 ## 项目结构
 
 ```
 school-trade/
-├── backend/              # Go 后端
-│   ├── handlers/         # 接口处理
+├── backend/              # 二手交易应用 Go 后端
+│   ├── handlers/         # 接口处理（含 oauth.go 对接 UAS）
 │   ├── middleware/       # JWT 认证中间件
 │   ├── models/           # 数据模型
 │   └── store/            # 数据库层
-├── frontend/             # 前端页面
+├── frontend/             # 二手交易应用前端页面
 │   ├── css/
 │   ├── js/
 │   └── pages/
-├── docker-compose.yml    # Docker 编排
-├── Dockerfile            # 应用 Dockerfile
+├── uas/                  # UAS 统一身份认证平台
+│   ├── backend/          # UAS Go 后端
+│   │   ├── handlers/     # OAuth2、用户、应用、菜单等接口
+│   │   ├── middleware/   # JWT 鉴权中间件
+│   │   ├── models/       # UAS 数据模型
+│   │   ├── config/       # 环境变量配置
+│   │   └── utils/        # 工具函数
+│   ├── frontend/         # UAS Vue3 管理前端
+│   │   ├── src/
+│   │   │   ├── api/      # 接口封装
+│   │   │   ├── layout/   # 后台布局
+│   │   │   ├── router/   # 路由配置
+│   │   │   └── views/    # 页面（dashboard/system/user/app/...）
+│   │   └── vite.config.js
+│   └── docs/
+│       └── init_tables.sql  # UAS 数据库初始化脚本
+├── diagrams/             # 项目架构图、ER图、甘特图等
+├── docker-compose.yml    # 二手交易应用 Docker 编排
+├── Dockerfile            # 二手交易应用 Dockerfile
 └── README.md
 ```
